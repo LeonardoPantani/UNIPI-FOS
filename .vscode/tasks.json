@@ -1,0 +1,106 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Compila Server",
+            "type": "shell",
+            "command": "",
+            "args": [
+                "make",
+                "clean",
+                "--directory=${workspaceFolder}/Server;",
+                "make",
+                "--directory=${workspaceFolder}/Server;"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Compila Server e cancella config",
+            "type": "shell",
+            "command": "",
+            "args": [
+                "make",
+                "cleann",
+                "--directory=${workspaceFolder}/Server;",
+                "make",
+                "--directory=${workspaceFolder}/Server;"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Compila Client",
+            "type": "shell",
+            "command": "",
+            "args": [
+                "make",
+                "clean",
+                "--directory=${workspaceFolder}/Client;",
+                "make",
+                "--directory=${workspaceFolder}/Client;"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Compila Client e cancella config",
+            "type": "shell",
+            "command": "",
+            "args": [
+                "make",
+                "cleann",
+                "--directory=${workspaceFolder}/Client;",
+                "make",
+                "--directory=${workspaceFolder}/Client;"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Pulisci tutto",
+            "type": "shell",
+            "command": "",
+            "args": [
+                "make",
+                "clean",
+                "--directory=${workspaceFolder}/Server;",
+                "make",
+                "clean",
+                "--directory=${workspaceFolder}/Client;"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        }
+    ]
+}
