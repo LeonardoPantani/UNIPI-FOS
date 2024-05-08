@@ -36,3 +36,6 @@ Server/config.conf
 Server/main
 Client/config.conf
 Client/main
+
+# Custom: clear settings.json file from VS-Code
+.vscode/settings.json
