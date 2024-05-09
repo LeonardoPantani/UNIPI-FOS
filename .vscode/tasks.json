@@ -2,6 +2,31 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Compila tutto",
+            "type": "shell",
+            "command": "",
+            "args": [
+                "make",
+                "clean",
+                "--directory=${workspaceFolder}/Server;",
+                "make",
+                "--directory=${workspaceFolder}/Server;",
+                "make",
+                "clean",
+                "--directory=${workspaceFolder}/Client;",
+                "make",
+                "--directory=${workspaceFolder}/Client;"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
             "label": "Compila Server",
             "type": "shell",
             "command": "",
