@@ -61,7 +61,7 @@ int main() {
             if (bytes_read > 0) {
                 std::cout << "Server > " << buffer << std::endl;
             } else {
-                std::cerr << "Errore nella lettura della risposta o connessione chiusa dal server." << std::endl;
+                throw std::runtime_error("Errore nella lettura della risposta o connessione chiusa dal server.");
             }
         }
 
