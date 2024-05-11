@@ -1,4 +1,5 @@
 #include "../shared-libs/configmanager.hpp"
+
 #include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -86,12 +87,18 @@ int main() {
             {
                 std::lock_guard<std::mutex> lock(connectionMutex);
                 if (activeConnections >= maxClients) {
-                    write(client_socket, blockExtraClientsMSG, strlen(blockExtraClientsMSG));
+                    if (write(client_socket, blockExtraClientsMSG, strlen(blockExtraClientsMSG)) < 0) {
+                        std::cerr << "[!] Impossibile rispondere al client." << std::endl;
+                    }
                     close(client_socket);
                     continue;
                 } else {
                     const char* msg = "Salve!";
-                    write(client_socket, msg, strlen(msg));
+                    if(write(client_socket, msg, strlen(msg)) < 0) {
+                        std::cerr << "[!] Impossibile contattare il client." << std::endl;
+                        close(client_socket);
+                        continue;
+                    }
                 }
             }
 
@@ -101,7 +108,7 @@ int main() {
 
         close(server_socket);
     } catch (const std::exception& e) {
-        std::cerr << "[!] Si è verificato un errore: " << e.what() << std::endl;
+        std::cerr << "[!] Si è verificato un errore grave: " << e.what() << std::endl;
         return 1;
     }
 

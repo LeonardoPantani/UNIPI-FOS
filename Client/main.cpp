@@ -8,6 +8,7 @@
 #include <string>
 
 const std::string configPath = "config.conf";
+const int connectionInterval = 5;
 
 int main() {
     try {
@@ -23,19 +24,23 @@ int main() {
         std::cout << "> IP da raggiungere: " << serverIP << std::endl;
         std::cout << "> Porta: " << serverPort << std::endl;
 
-        int sock = socket(AF_INET, SOCK_STREAM, 0);
-        if (sock == -1) {
-            throw std::runtime_error("Impossibile creare socket.");
-        }
+        int sock;
+        while (true) {
+            sock = socket(AF_INET, SOCK_STREAM, 0);
+            if (sock == -1) { continue; }
 
-        sockaddr_in server_addr;
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(serverPort);
-        server_addr.sin_addr.s_addr = inet_addr(serverIP.c_str());
+            sockaddr_in server_addr;
+            server_addr.sin_family = AF_INET;
+            server_addr.sin_port = htons(serverPort);
+            server_addr.sin_addr.s_addr = inet_addr(serverIP.c_str());
 
-        if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-            close(sock);
-            throw std::runtime_error("Impossibile connettersi al server, verifica i parametri del file di configurazione.");
+            if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+                std::cerr << "[!] Impossibile connettersi. Nuovo tentativo in " << connectionInterval << "s..." << std::endl;
+                close(sock);
+                sleep(connectionInterval);
+                continue;
+            }
+            break;
         }
 
         char buffer[2048] = {0};
@@ -67,7 +72,7 @@ int main() {
 
         close(sock);
     } catch (const std::exception& e) {
-        std::cerr << "[!] Si è verificato un errore: " << e.what() << std::endl;
+        std::cerr << "[!] Si è verificato un errore grave: " << e.what() << std::endl;
         return 1;
     }
 
