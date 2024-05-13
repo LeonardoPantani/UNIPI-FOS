@@ -8,11 +8,12 @@
 #include <string>
 
 const std::string configPath = "config.conf";
+const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort"};
 const int connectionInterval = 5;
 
 int main() {
     try {
-        ConfigManager configManager(configPath);
+        ConfigManager configManager(configPath, configKeys);
         if (!configManager.checkVersion()) { return 1; }
 
         
@@ -23,6 +24,7 @@ int main() {
         std::cout << "FILE DI CONFIGURAZIONE CLIENT (v." << configVersion <<") CARICATO: " << std::endl;
         std::cout << "> IP da raggiungere: " << serverIP << std::endl;
         std::cout << "> Porta: " << serverPort << std::endl;
+        std::cout << std::endl;
 
         int sock;
         while (true) {
@@ -43,6 +45,8 @@ int main() {
             break;
         }
 
+        std::cout << "> Connessione stabilita." << std::endl;
+
         char buffer[2048] = {0};
         int bytes_read = read(sock, buffer, sizeof(buffer) - 1);
         if (bytes_read > 0) {
@@ -52,7 +56,7 @@ int main() {
                 std::cout << "Server > " << buffer << std::endl;
             }
         } else {
-            throw std::runtime_error("Errore nella lettura della risposta o connessione chiusa dal server.");
+            throw std::runtime_error("Che bell'inizio! Impossibile continuare a causa di un errore di comunicazione.");
         }
 
         std::string userInput;
@@ -66,7 +70,7 @@ int main() {
             if (bytes_read > 0) {
                 std::cout << "Server > " << buffer << std::endl;
             } else {
-                throw std::runtime_error("Errore nella lettura della risposta o connessione chiusa dal server.");
+                throw std::runtime_error("Impossibile leggere la risposta o connessione chiusa dal server.");
             }
         }
 

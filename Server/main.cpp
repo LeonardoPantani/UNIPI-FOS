@@ -12,6 +12,7 @@
 
 const char* blockExtraClientsMSG = "Server pieno.";
 const std::string configPath = "config.conf";
+const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
 std::mutex connectionMutex;
 int activeConnections = 0;
 
@@ -37,7 +38,7 @@ void handle_client(int client_socket) {
     } catch (const std::exception& e) {
         std::cerr << "[!] Errore: " << e.what() << std::endl;
     }
-    std::cout << "Connessione col client terminata." << std::endl;
+    std::cout << "> Connessione col client terminata." << std::endl;
     close(client_socket);
 
     {
@@ -48,7 +49,7 @@ void handle_client(int client_socket) {
 
 int main() {
     try {
-        ConfigManager configManager(configPath);
+        ConfigManager configManager(configPath, configKeys);
         std::string configVersion = configManager.getString("configVersion");
         std::string serverIP = configManager.getString("serverIP");
         int serverPort = configManager.getInt("serverPort");
@@ -58,6 +59,7 @@ int main() {
         std::cout << "> Indirizzo IP: " << serverIP << std::endl;
         std::cout << "> Porta: " << serverPort << std::endl;
         std::cout << "> Max numero client: " << maxClients << std::endl;
+        std::cout << std::endl;
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (server_socket == -1) {

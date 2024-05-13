@@ -1,4 +1,4 @@
-CXX = g++ -std=c++11 -Wall -O2
+CXX = g++ -std=c++17 -Wall -O2 -g
 
 all: main
 
