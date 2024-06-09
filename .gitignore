@@ -39,3 +39,7 @@ Client/main
 
 # Custom: clear settings.json file from VS-Code
 .vscode/settings.json
+
+# Custom: ignore all private and public keys
+*.priv
+*.pub

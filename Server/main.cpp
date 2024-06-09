@@ -1,4 +1,5 @@
 #include "../shared-libs/configmanager.hpp"
+#include "../shared-libs/cryptomanager.hpp"
 #include "libs/ClientManager.hpp"
 
 #include <iostream>
@@ -10,7 +11,6 @@
 #include <vector>
 #include <mutex>
 
-const char* blockExtraClientsMSG = "Server pieno.";
 const std::string configPath = "config.conf";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
 std::mutex connectionMutex;
@@ -28,6 +28,14 @@ int main() {
         std::cout << "> Indirizzo IP: " << serverIP << std::endl;
         std::cout << "> Porta: " << serverPort << std::endl;
         std::cout << "> Max numero client: " << maxClients << std::endl;
+
+        /* CryptoManager cryptoManager("server.priv", "server.pub");
+        if (cryptoManager.generateRSAKey()) {
+            std::cout << "> Chiavi server: generate" << std::endl;
+        } else {
+            std::cout << "> Chiavi server: già presenti" << std::endl;
+        } */
+
         std::cout << std::endl;
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -58,8 +66,8 @@ int main() {
             {
                 std::lock_guard<std::mutex> lock(connectionMutex);
                 if (activeConnections >= maxClients) {
-                    Packet helloPacket(PacketType::SERVER_FULL);
-                    std::vector<char> serialized = helloPacket.serialize();
+                    Packet fullPacket(PacketType::SERVER_FULL);
+                    std::vector<char> serialized = fullPacket.serialize();
                     if (write(client_socket, serialized.data(), serialized.size()) < 0) {
                         std::cerr << "[!] Impossibile scrivere al client." << std::endl;
                         break;
