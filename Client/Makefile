@@ -15,8 +15,8 @@ libs/ServerManager.o: libs/ServerManager.cpp
 	$(CXX) -c libs/ServerManager.cpp -o libs/ServerManager.o
 
 clean:
-	rm -f *.o ../shared-libs/*.o main
+	rm -f *.o ../shared-libs/*.o libs/*.o main
 
 cleann:
-	rm -f *.o ../shared-libs/*.o main
+	rm -f *.o ../shared-libs/*.o libs/*.o main
 	rm -f config.conf
