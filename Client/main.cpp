@@ -1,5 +1,6 @@
 #include "libs/ServerManager.hpp"
 #include "../shared-libs/configmanager.hpp"
+#include "../shared-libs/cryptomanager.hpp"
 #include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h>
