@@ -1,16 +1,18 @@
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -O2 -g
+CXX = g++ -std=c++17 -Wall -O2 -g
 
 all: main
 
-main: main.o ../shared-libs/configmanager.o
-	$(CXX) $(CXXFLAGS) -o main main.o ../shared-libs/configmanager.o
+main: main.o ../shared-libs/configmanager.o libs/ServerManager.o
+	$(CXX) -o main main.o ../shared-libs/configmanager.o libs/ServerManager.o
 
 main.o: main.cpp
-	$(CXX) $(CXXFLAGS) -c main.cpp -o main.o
+	$(CXX) -c main.cpp -o main.o
 
 ../shared-libs/configmanager.o: ../shared-libs/configmanager.cpp
-	$(CXX) $(CXXFLAGS) -c ../shared-libs/configmanager.cpp -o ../shared-libs/configmanager.o
+	$(CXX) -c ../shared-libs/configmanager.cpp -o ../shared-libs/configmanager.o
+
+libs/ServerManager.o: libs/ServerManager.cpp
+	$(CXX) -c libs/ServerManager.cpp -o libs/ServerManager.o
 
 clean:
 	rm -f *.o ../shared-libs/*.o main

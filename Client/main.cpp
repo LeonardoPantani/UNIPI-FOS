@@ -1,11 +1,12 @@
+#include "libs/ServerManager.hpp"
 #include "../shared-libs/configmanager.hpp"
 #include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <cstring>
 #include <string>
+#include <vector>
 
 const std::string configPath = "config.conf";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort"};
@@ -16,7 +17,6 @@ int main() {
         ConfigManager configManager(configPath, configKeys);
         if (!configManager.checkVersion()) { return 1; }
 
-        
         std::string configVersion = configManager.getString("configVersion");
         std::string serverIP = configManager.getString("serverIP");
         int serverPort = configManager.getInt("serverPort");
@@ -47,32 +47,11 @@ int main() {
 
         std::cout << "> Connessione stabilita." << std::endl;
 
-        char buffer[2048] = {0};
-        int bytes_read = read(sock, buffer, sizeof(buffer) - 1);
-        if (bytes_read > 0) {
-            if(strcmp(buffer, "Server pieno.") == 0) {
-                throw std::runtime_error("Il server non accetta ulteriori client al momento.");
-            } else {
-                std::cout << "Server > " << buffer << std::endl;
-            }
-        } else {
-            throw std::runtime_error("Che bell'inizio! Impossibile continuare a causa di un errore di comunicazione.");
-        }
+        Packet helloPacket(PacketType::HELLO);
+        std::vector<char> serializedHello = helloPacket.serialize();
+        send(sock, serializedHello.data(), serializedHello.size(), 0);
 
-        std::string userInput;
-        while (true) {
-            std::cout << "Input: ";
-            std::getline(std::cin, userInput);
-            send(sock, userInput.c_str(), userInput.length(), 0);
-
-            memset(buffer, 0, sizeof(buffer));
-            bytes_read = read(sock, buffer, sizeof(buffer) - 1);
-            if (bytes_read > 0) {
-                std::cout << "Server > " << buffer << std::endl;
-            } else {
-                throw std::runtime_error("Impossibile leggere la risposta o connessione chiusa dal server.");
-            }
-        }
+        handle_server(sock);
 
         close(sock);
     } catch (const std::exception& e) {

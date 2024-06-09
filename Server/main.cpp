@@ -1,4 +1,5 @@
 #include "../shared-libs/configmanager.hpp"
+#include "libs/ClientManager.hpp"
 
 #include <iostream>
 #include <sys/socket.h>
@@ -7,7 +8,6 @@
 #include <unistd.h>
 #include <thread>
 #include <vector>
-#include <cstring>
 #include <mutex>
 
 const char* blockExtraClientsMSG = "Server pieno.";
@@ -15,37 +15,6 @@ const std::string configPath = "config.conf";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
 std::mutex connectionMutex;
 int activeConnections = 0;
-
-void handle_client(int client_socket) {
-    {
-        std::lock_guard<std::mutex> lock(connectionMutex);
-        ++activeConnections;
-    }
-
-    try {
-        char buffer[2048];
-        while (true) {
-            memset(buffer, 0, 2048);
-            int bytes_read = read(client_socket, buffer, 2048 - 1);
-            if (bytes_read <= 0) break;
-
-            std::cout << "Client > " << buffer << std::endl;
-            if (write(client_socket, buffer, bytes_read) < 0) {
-                std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                break;
-            }
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "[!] Errore: " << e.what() << std::endl;
-    }
-    std::cout << "> Connessione col client terminata." << std::endl;
-    close(client_socket);
-
-    {
-        std::lock_guard<std::mutex> lock(connectionMutex);
-        --activeConnections;
-    }
-}
 
 int main() {
     try {
@@ -89,17 +58,20 @@ int main() {
             {
                 std::lock_guard<std::mutex> lock(connectionMutex);
                 if (activeConnections >= maxClients) {
-                    if (write(client_socket, blockExtraClientsMSG, strlen(blockExtraClientsMSG)) < 0) {
-                        std::cerr << "[!] Impossibile rispondere al client." << std::endl;
+                    Packet helloPacket(PacketType::SERVER_FULL);
+                    std::vector<char> serialized = helloPacket.serialize();
+                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
+                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
+                        break;
                     }
                     close(client_socket);
                     continue;
                 } else {
-                    const char* msg = "Salve!";
-                    if(write(client_socket, msg, strlen(msg)) < 0) {
-                        std::cerr << "[!] Impossibile contattare il client." << std::endl;
-                        close(client_socket);
-                        continue;
+                    Packet helloPacket(PacketType::HELLO);
+                    std::vector<char> serialized = helloPacket.serialize();
+                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
+                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
+                        break;
                     }
                 }
             }
