@@ -3,6 +3,11 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <filesystem>
+#include <algorithm>
 
 class ConfigManager {
 private:

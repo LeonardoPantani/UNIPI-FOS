@@ -21,9 +21,8 @@ enum class PacketType {
     BBS_ADD            /* command add */
 };
 
-const size_t DATA_SIZE = 101; // includes the \0 character, so the limit of writable characters is DATA_SIZE-1
+const size_t DATA_SIZE = 2048; // includes the \0 character, so the limit of writable characters is DATA_SIZE-1
 const size_t PACKET_SIZE = sizeof(PacketType) + DATA_SIZE;
-
 
 struct Packet {
     PacketType type;
@@ -34,7 +33,7 @@ struct Packet {
         data.resize(DATA_SIZE, 0);
     }
 
-    // Constructor accepting packet type and data
+    // Constructor accepting packet type and data as std::string
     Packet(PacketType type, const std::string& content): type(type), data(content.begin(), content.end()) {
         if (data.size() > DATA_SIZE) {
             throw std::runtime_error("Content size exceeds the limit of " + std::to_string(DATA_SIZE - 1) + " characters.");
@@ -43,12 +42,19 @@ struct Packet {
         }
     }
 
+    // Constructor accepting buffer with size check
     Packet(const char* buffer, size_t size) {
         if (size != PACKET_SIZE) {
             throw std::runtime_error("Buffer size is invalid.");
         }
         type = static_cast<PacketType>(*buffer);
         data.insert(data.end(), buffer + sizeof(PacketType), buffer + size);
+    }
+
+    // New constructor accepting unsigned char* data
+    Packet(PacketType type, const unsigned char* data_input, size_t data_len): type(type) {
+        data.resize(DATA_SIZE, 0);
+        std::memcpy(data.data(), data_input, std::min(DATA_SIZE - 1, data_len));
     }
 
     std::vector<char> serialize() const {

@@ -1,9 +1,4 @@
 #include "configmanager.hpp"
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <filesystem>
-#include <algorithm>
 
 namespace fs = std::filesystem;
 

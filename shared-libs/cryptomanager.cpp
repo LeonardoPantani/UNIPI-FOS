@@ -1,12 +1,10 @@
 #include "cryptomanager.hpp"
-#include <openssl/pem.h>
-#include <openssl/rsa.h>
-#include <openssl/bn.h>
-#include <stdexcept>
-#include <sys/stat.h>
 
 CryptoManager::CryptoManager(const std::string& privateKeyPath, const std::string& publicKeyPath)
     : privateKeyPath(privateKeyPath), publicKeyPath(publicKeyPath) {}
+
+CryptoManager::CryptoManager()
+    : privateKeyPath("key.priv"), publicKeyPath("key.pub") {}
 
 bool CryptoManager::fileExists(const std::string& fileName) {
     struct stat buffer;
@@ -70,4 +68,40 @@ bool CryptoManager::generateRSAKey() {
     EVP_PKEY_free(pkey);
 
     return true;
+}
+
+std::pair<unsigned char*, int> CryptoManager::getCertFromFile(const std::string& certFilePath) {
+    X509 *x509 = nullptr;
+    BIO *certBio = BIO_new(BIO_s_file());
+    unsigned char *buf = nullptr;
+
+    if (!certBio) {
+        throw std::runtime_error("Errore nella creazione di un oggetto BIO per il file del certificato");
+    }
+
+    if (BIO_read_filename(certBio, certFilePath.c_str()) <= 0) {
+        BIO_free(certBio);
+        throw std::runtime_error("Errore nella lettura del file del certificato");
+    }
+
+    // Leggi il certificato X509 dal BIO
+    x509 = d2i_X509_bio(certBio, nullptr);
+    if (!x509) {
+        BIO_free(certBio);
+        throw std::runtime_error("Errore nella lettura del certificato X509");
+    }
+
+    // Ottieni la lunghezza del certificato in formato DER
+    int len = i2d_X509(x509, &buf);
+    if (len <= 0) {
+        BIO_free(certBio);
+        X509_free(x509);
+        throw std::runtime_error("Errore nella conversione del certificato X509 in formato DER");
+    }
+
+    // Libera il BIO
+    BIO_free(certBio);
+
+    // Restituisci il certificato in formato DER e la sua lunghezza
+    return std::make_pair(buf, len);
 }

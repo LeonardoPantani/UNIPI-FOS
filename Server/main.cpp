@@ -24,17 +24,12 @@ int main() {
         int serverPort = configManager.getInt("serverPort");
         int maxClients = configManager.getInt("maxClients");
 
+        CryptoManager cryptoManager;
+
         std::cout << "FILE DI CONFIGURAZIONE SERVER (v." << configVersion <<") CARICATO: " << std::endl;
         std::cout << "> Indirizzo IP: " << serverIP << std::endl;
         std::cout << "> Porta: " << serverPort << std::endl;
         std::cout << "> Max numero client: " << maxClients << std::endl;
-
-        /* CryptoManager cryptoManager("server.priv", "server.pub");
-        if (cryptoManager.generateRSAKey()) {
-            std::cout << "> Chiavi server: generate" << std::endl;
-        } else {
-            std::cout << "> Chiavi server: già presenti" << std::endl;
-        } */
 
         std::cout << std::endl;
 
@@ -75,7 +70,12 @@ int main() {
                     close(client_socket);
                     continue;
                 } else {
-                    Packet helloPacket(PacketType::HELLO);
+                    auto certPair = cryptoManager.getCertFromFile("server.cer");
+                    unsigned char* certData = certPair.first;
+                    int certLength = certPair.second;
+
+                    // mando il pacchetto HELLO al client come saluto
+                    Packet helloPacket(PacketType::HELLO, certData, certLength);
                     std::vector<char> serialized = helloPacket.serialize();
                     if (write(client_socket, serialized.data(), serialized.size()) < 0) {
                         std::cerr << "[!] Impossibile scrivere al client." << std::endl;

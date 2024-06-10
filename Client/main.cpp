@@ -48,6 +48,7 @@ int main() {
 
         std::cout << "> Connessione stabilita." << std::endl;
 
+        // mando il pacchetto HELLO come saluto
         Packet helloPacket(PacketType::HELLO);
         std::vector<char> serializedHello = helloPacket.serialize();
         send(sock, serializedHello.data(), serializedHello.size(), 0);

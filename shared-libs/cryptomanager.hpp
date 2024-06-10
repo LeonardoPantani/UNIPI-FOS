@@ -7,12 +7,19 @@
 #include <openssl/bn.h>
 #include <stdexcept>
 #include <sys/stat.h>
+#include <iostream>
+#include <vector>
+#include <sstream>
+#include <iomanip>
 
 class CryptoManager {
 public:
     CryptoManager(const std::string& privateKeyPath, const std::string& publicKeyPath);
+    CryptoManager();
 
     bool generateRSAKey();
+
+    std::pair<unsigned char*, int> getCertFromFile(const std::string& certFilePath);
 
 private:
     std::string privateKeyPath;
