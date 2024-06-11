@@ -16,7 +16,29 @@ ConfigManager::ConfigManager(const std::string& configPath, const std::vector<st
         std::cout << "> File di configurazione creato. Modifica " << configPath << " se necessario e riesegui il programma per continuare." << std::endl;
         exit(0);
     }
-    
+
+    loadConfig(configPath, configValues);
+
+    switch(checkVersion()) {
+        case 1: {
+            std::cout << "[!] Impossibile ottenere i dati sulla versione. Cancella l'attuale configurazione e ri-esegui questo programma per generare quello nuovo." << std::endl;
+            exit(1);
+        }
+        break;
+        case 2: {
+            std::cout << "[!] E' disponibile una nuova versione del file di configurazione. Cancella l'attuale configurazione e ri-esegui questo programma per generare quello nuovo." << std::endl;
+            exit(1);
+        }
+        break;
+        case 3: {
+            std::cout << "[!] Il tuo file di configurazione è più recente del default. Scarica gli aggiornamenti di questo programma e ri-eseguilo." << std::endl;
+            exit(1);
+        }
+        break;
+
+        default: {}
+    }
+
     if(!loadConfig(configPath, configValues)) {
         std::cerr << "[!] File di configurazione non valido. Eliminalo e riesegui il programma per continuare." << std::endl;
         exit(1);
@@ -39,18 +61,24 @@ bool ConfigManager::loadConfig(const std::string& configPath, std::unordered_map
     });
 }
 
-bool ConfigManager::checkVersion() {
+/**
+ * 0 ok
+ * 1 impossibile ottenere versione utente
+ * 2 versione utente più vecchia
+ * 3 versione utente più recente
+ */
+int ConfigManager::checkVersion() {
     std::string defaultVersion = defaultConfigValues["configVersion"];
     std::string userVersion = configValues["configVersion"];
 
+    if (userVersion.empty()) return 1;
+
     if (userVersion > defaultVersion) {
-        std::cout << "[!] Il tuo file di configurazione è più recente del default. Scarica gli aggiornamenti di questo programma e ri-eseguilo." << std::endl;
-        return false;
+        return 3;
     } else if (userVersion < defaultVersion) {
-        std::cout << "[!] E' disponibile una nuova versione del file di configurazione. Cancella l'attuale configurazione e ri-esegui questo programma per generare quello nuovo." << std::endl;
-        return false;
+        return 2;
     }
-    return true;
+    return 0;
 }
 
 std::string ConfigManager::getString(const std::string& key) {

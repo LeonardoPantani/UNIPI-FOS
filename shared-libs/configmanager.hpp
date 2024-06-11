@@ -19,7 +19,7 @@ public:
     ConfigManager(const std::string& configPath, const std::vector<std::string>& configKeys);
 
     bool loadConfig(const std::string& configPath, std::unordered_map<std::string, std::string>& storage);
-    bool checkVersion();
+    int checkVersion();
     std::string getString(const std::string& key);
     int getInt(const std::string& key);
 };

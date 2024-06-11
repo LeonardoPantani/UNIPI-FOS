@@ -19,6 +19,7 @@ int activeConnections = 0;
 int main() {
     try {
         ConfigManager configManager(configPath, configKeys);
+        
         std::string configVersion = configManager.getString("configVersion");
         std::string serverIP = configManager.getString("serverIP");
         int serverPort = configManager.getInt("serverPort");
@@ -70,12 +71,12 @@ int main() {
                     close(client_socket);
                     continue;
                 } else {
-                    auto certPair = cryptoManager.getCertFromFile("server.cer");
-                    unsigned char* certData = certPair.first;
-                    int certLength = certPair.second;
+                    //auto certPair = cryptoManager.getCertFromFile("server.cer");
+                    //unsigned char* certData = certPair.first;
+                    //int certLength = certPair.second;
 
                     // mando il pacchetto HELLO al client come saluto
-                    Packet helloPacket(PacketType::HELLO, certData, certLength);
+                    Packet helloPacket(PacketType::HELLO);
                     std::vector<char> serialized = helloPacket.serialize();
                     if (write(client_socket, serialized.data(), serialized.size()) < 0) {
                         std::cerr << "[!] Impossibile scrivere al client." << std::endl;
@@ -90,7 +91,7 @@ int main() {
 
         close(server_socket);
     } catch (const std::exception& e) {
-        std::cerr << "[!] Si è verificato un errore grave: " << e.what() << std::endl;
+        std::cerr << "[!] " << e.what() << std::endl;
         return 1;
     }
 
