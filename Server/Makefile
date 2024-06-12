@@ -2,8 +2,8 @@ CXX = g++ -std=c++17 -Wall -O2 -g
 
 all: main
 
-main: main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ClientManager.o libs/PersistentMemory.o ../shared-libs/UUID.o
-	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ClientManager.o libs/PersistentMemory.o ../shared-libs/UUID.o -lssl -lcrypto
+main: main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ThreadPool.o libs/ClientManager.o libs/PersistentMemory.o ../shared-libs/UUID.o
+	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ThreadPool.o libs/ClientManager.o libs/PersistentMemory.o ../shared-libs/UUID.o -lssl -lcrypto
 
 main.o: main.cpp
 	$(CXX) -c main.cpp -o main.o
@@ -13,6 +13,9 @@ main.o: main.cpp
 
 ../shared-libs/cryptomanager.o: ../shared-libs/cryptomanager.cpp
 	$(CXX) -c ../shared-libs/cryptomanager.cpp -o ../shared-libs/cryptomanager.o
+
+libs/ThreadPool.o: libs/ThreadPool.cpp
+	$(CXX) -c libs/ThreadPool.cpp -o libs/ThreadPool.o
 
 libs/ClientManager.o: libs/ClientManager.cpp
 	$(CXX) -c libs/ClientManager.cpp -o libs/ClientManager.o
@@ -27,5 +30,5 @@ clean:
 	rm -f *.o ../shared-libs/*.o libs/*.o main
 
 cleann:
-	rm -f *.o ../shared-libs/*.o libs/*.o main *.pub *.priv
-	rm -f config.conf
+	rm -f *.o ../shared-libs/*.o libs/*.o main *.pub *.priv persistentMemory.json persistentMemory.key
+	rm -f config.json

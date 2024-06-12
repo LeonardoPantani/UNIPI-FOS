@@ -10,7 +10,7 @@
 #include <vector>
 #include <csignal>
 
-const std::string configPath = "config.conf";
+const std::string configPath = "config.json";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxAttempsToConnect"};
 const int connectionInterval = 5;
 

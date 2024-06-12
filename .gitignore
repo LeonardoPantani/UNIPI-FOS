@@ -31,10 +31,10 @@
 *.out
 *.app
 
-# Custom: delete config.conf file from Client & Server folders
-Server/config.conf
+# Custom: delete config.json file from Client & Server folders
+Server/config.json
 Server/main
-Client/config.conf
+Client/config.json
 Client/main
 
 # Custom: clear settings.json file from VS-Code

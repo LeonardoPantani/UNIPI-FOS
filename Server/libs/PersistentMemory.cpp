@@ -159,7 +159,7 @@ std::string PersistentMemory::decrypt(const std::string& cipherText) {
     plainTextLen = len;
 
     if (1 != EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char*>(&plainText[0]) + len, &len))
-        throw std::runtime_error("Finalizzazione decifratura fallita.");
+        throw std::runtime_error("La decifrazione della memoria persistente è fallita: la chiave potrebbe essere errata. Impossibile proseguire.");
     plainTextLen += len;
 
     EVP_CIPHER_CTX_free(ctx);

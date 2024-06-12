@@ -1,10 +1,16 @@
 #include "ClientManager.hpp"
-#include <iostream>
-#include <unistd.h>
-#include <vector>
-#include <cstring>
 
-void handle_client(int client_socket, PersistentMemory pm) {
+void handle_client(int client_socket, std::thread::id threadId) {
+    std::cout << "Thread " << threadId << " > Gestisco il socket " << client_socket << std::endl;
+
+    // mando il pacchetto HELLO al client come saluto
+    Packet helloPacket(PacketType::HELLO);
+    std::vector<char> serialized = helloPacket.serialize();
+    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
+        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
+        return;
+    }
+
     try {
         char buffer[PACKET_SIZE];
         while (true) {
@@ -26,8 +32,6 @@ void handle_client(int client_socket, PersistentMemory pm) {
                     }
                     break;
                 case PacketType::BYE:
-                case PacketType::SERVER_FULL:
-                case PacketType::SERVER_CLOSING:
                 case PacketType::LOGIN_REQUEST:
                 case PacketType::REGISTER_REQUEST:
                 case PacketType::LOGIN_OK:

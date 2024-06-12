@@ -1,6 +1,9 @@
 #include "../shared-libs/configmanager.hpp"
 #include "../shared-libs/cryptomanager.hpp"
+
+#include "libs/ThreadPool.hpp"
 #include "libs/ClientManager.hpp"
+#include "libs/PersistentMemory.hpp"
 
 #include <iostream>
 #include <sys/socket.h>
@@ -11,53 +14,75 @@
 #include <vector>
 #include <mutex>
 
-const std::string configPath = "config.conf";
-const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
-std::mutex connectionMutex;
-int activeConnections = 0;
+// file di config
+const std::string configPath = "config.json";
+const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "threadPoolSize"};
 
-// test memoria persistente
-#include "libs/PersistentMemory.hpp"
+// memoria persistente
 const std::string dataFilePath = "persistentMemory.json"; // file memoria persistente
 const std::string keyFilePath = "persistentMemory.key"; // file contenente la chiave per decriptare e criptare
 
 int main() {
     try {
         ConfigManager configManager(configPath, configKeys);
-        
         std::string configVersion = configManager.getString("configVersion");
         std::string serverIP = configManager.getString("serverIP");
         int serverPort = configManager.getInt("serverPort");
-        int maxClients = configManager.getInt("maxClients");
-
-        CryptoManager cryptoManager;
+        int threadPoolSize = configManager.getInt("threadPoolSize");
 
         std::cout << "FILE DI CONFIGURAZIONE SERVER (v." << configVersion <<") CARICATO: " << std::endl;
         std::cout << "> Indirizzo IP: " << serverIP << std::endl;
         std::cout << "> Porta: " << serverPort << std::endl;
-        std::cout << "> Max numero client: " << maxClients << std::endl;
-
+        std::cout << "> Dimensione pool di thread: " << threadPoolSize << std::endl;
         std::cout << std::endl;
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+        int new_server_socket;
+        int opt = 1;
         if (server_socket == -1) {
             throw std::runtime_error("Creazione socket fallita.");
+        }
+
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+            throw std::runtime_error("Operazione setsockopt fallita.");
         }
 
         sockaddr_in server_addr;
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(serverPort);
         server_addr.sin_addr.s_addr = inet_addr(serverIP.c_str());
+        int addrLen = sizeof(server_addr);
 
         if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
             throw std::runtime_error("Binding fallito.");
         }
 
-        if (listen(server_socket, maxClients) < 0) {
+        if (listen(server_socket, 100) < 0) {
             throw std::runtime_error("Listen fallito.");
         }
 
-        // test memoria persistente
+        ThreadPool pool(100);
+
+        while (true) {
+            if ((new_server_socket = accept(server_socket, (struct sockaddr *)&server_addr, (socklen_t *)&addrLen)) < 0) {
+                throw std::runtime_error("Accept fallita.");
+            }
+            pool.enqueue([new_server_socket](std::thread::id id) { handle_client(new_server_socket, id); });
+        }
+        
+        close(server_socket);
+    } catch (const std::exception& e) {
+        std::cerr << "[!] " << e.what() << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+
+
+
+
+/* // test memoria persistente
         std::cout << "------------------------------------------------" << std::endl;
         PersistentMemory pm(dataFilePath, keyFilePath);
 
@@ -114,50 +139,4 @@ int main() {
 
         std::cout << "nickname 'leonardo' e messaggio message1 rimossi." << std::endl;
         std::cout << "------------------------------------------------" << std::endl;
-        // fine test memoria persistente
-
-        while (true) {
-            int client_socket = accept(server_socket, NULL, NULL);
-            if (client_socket < 0) {
-                std::cerr << "[!] Impossibile accettare client." << std::endl;
-                continue;
-            }
-
-            {
-                std::lock_guard<std::mutex> lock(connectionMutex);
-                if (activeConnections >= maxClients) {
-                    Packet fullPacket(PacketType::SERVER_FULL);
-                    std::vector<char> serialized = fullPacket.serialize();
-                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
-                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
-                        break;
-                    }
-                    close(client_socket);
-                    continue;
-                } else {
-                    //auto certPair = cryptoManager.getCertFromFile("server.cer");
-                    //unsigned char* certData = certPair.first;
-                    //int certLength = certPair.second;
-
-                    // mando il pacchetto HELLO al client come saluto
-                    Packet helloPacket(PacketType::HELLO);
-                    std::vector<char> serialized = helloPacket.serialize();
-                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
-                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
-                        break;
-                    }
-                }
-            }
-
-            std::thread t(handle_client, client_socket, pm);
-            t.detach();
-        }
-
-        close(server_socket);
-    } catch (const std::exception& e) {
-        std::cerr << "[!] " << e.what() << std::endl;
-        return 1;
-    }
-
-    return 0;
-}
+        // fine test memoria persistente */

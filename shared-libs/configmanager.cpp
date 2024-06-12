@@ -1,8 +1,10 @@
 #include "configmanager.hpp"
+#include "json.hpp"
 
+using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-const std::string defaultConfigPath = "libs/default-config.conf";
+const std::string defaultConfigPath = "libs/default-config.json";
 
 ConfigManager::ConfigManager(const std::string& configPath, const std::vector<std::string>& configKeys) : configKeys(configKeys) {
     if(!loadConfig(defaultConfigPath, defaultConfigValues)) {
@@ -49,13 +51,23 @@ bool ConfigManager::loadConfig(const std::string& configPath, std::unordered_map
     std::ifstream configFile(configPath);
     if (!configFile.is_open()) return false;
 
-    std::string line;
-    while (getline(configFile, line)) {
-        std::istringstream is_line(line);
-        std::string key, value;
-        if (std::getline(is_line, key, ':') && std::getline(is_line, value))
-            storage[key] = value;
+    json configJson;
+    configFile >> configJson;
+
+    for (const auto& key : configKeys) {
+        if (configJson.contains(key)) {
+            if (configJson[key].is_string()) {
+                storage[key] = configJson[key].get<std::string>();
+            } else if (configJson[key].is_number_integer()) {
+                storage[key] = std::to_string(configJson[key].get<int>());
+            } else if (configJson[key].is_number_float()) {
+                std::stringstream ss;
+                ss << std::fixed << std::setprecision(1) << configJson[key];
+                storage[key] = ss.str();;
+            }
+        }
     }
+
     return std::all_of(configKeys.begin(), configKeys.end(), [&storage](const std::string& key) {
         return !storage[key].empty();
     });

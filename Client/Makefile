@@ -22,4 +22,4 @@ clean:
 
 cleann:
 	rm -f *.o ../shared-libs/*.o libs/*.o main *.pub *.priv
-	rm -f config.conf
+	rm -f config.json
