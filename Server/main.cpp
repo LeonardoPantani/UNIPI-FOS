@@ -16,6 +16,11 @@ const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serve
 std::mutex connectionMutex;
 int activeConnections = 0;
 
+// test memoria persistente
+#include "libs/PersistentMemory.hpp"
+const std::string dataFilePath = "persistentMemory.json"; // file memoria persistente
+const std::string keyFilePath = "persistentMemoryKey.key"; // file contenente la chiave per decriptare e criptare
+
 int main() {
     try {
         ConfigManager configManager(configPath, configKeys);
@@ -52,6 +57,65 @@ int main() {
             throw std::runtime_error("Listen fallito.");
         }
 
+        // test memoria persistente
+        std::cout << "------------------------------------------------" << std::endl;
+        PersistentMemory pm(dataFilePath, keyFilePath);
+
+        std::vector<User> initialUsers = pm.getUsers();
+        std::vector<Message> initialMessages = pm.getMessages();
+
+        std::cout << "Utenti in memoria:" << std::endl;
+        for (const auto& user : initialUsers) {
+            std::cout << "email: " << user.getEmail() << " | nick: " << user.getNickname() << std::endl;
+        }
+
+        std::cout << "Messaggi in memoria:" << std::endl;
+        for (const auto& message : initialMessages) {
+            std::cout << "UUID: " << message.getUUID() << " | title: " << message.getTitle() << " | autore: " << message.getAuthor() << " | body: " << message.getBody() << std::endl;
+        }
+
+        User user1("leonardo@example.com", "leonardo", {1, 2, 3, 4, 5});
+        User user2("riccardo@example.com", "riccardo", {1, 2, 3, 4, 5});
+        User user3("christian@example.com", "christian", {1, 2, 3, 4, 5});
+        pm.addUser(user1);
+        pm.addUser(user2);
+        pm.addUser(user3);
+
+        Message message1("Boia", "leonardo", "Deh");
+        Message message2("Zio", "riccardo", "Pera");
+        Message message3("Chiara?", "christian", "Smash.");
+        pm.addMessage(message1);
+        pm.addMessage(message2);
+        pm.addMessage(message3);
+
+        std::vector<User> users = pm.getUsers();
+        std::vector<Message> messages = pm.getMessages();
+
+        std::cout << "getUsers:" << std::endl;
+        for (const auto& user : users) {
+            std::cout << "Email: " << user.getEmail() << ", Nickname: " << user.getNickname() << std::endl;
+        }
+
+        std::cout << "getMessages:" << std::endl;
+        for (const auto& message : messages) {
+            std::cout << "UUID: " << message.getUUID() << ", Titolo: " << message.getTitle() << ", Autore: " << message.getAuthor() << ", Corpo: " << message.getBody() << std::endl;
+        }
+
+        User retrievedUser = pm.getUser("leonardo");
+        std::cout << "Recupero nickname 'leonardo' - Email: " << retrievedUser.getEmail() << ", Nickname: " << retrievedUser.getNickname() << std::endl;
+        try { User retrievedUser2 = pm.getUser("marco"); } catch (const UserNotFoundException&) { std::cout<< "Utente non trovato (ok)" << std::endl; }
+
+        Message retrievedMessage = pm.getMessage(message1.getUUID());
+        std::cout << "Recupero message1 - UUID: " << retrievedMessage.getUUID() << ", Titolo: " << retrievedMessage.getTitle() << ", Autore: " << retrievedMessage.getAuthor() << ", Corpo: " << retrievedMessage.getBody() << std::endl;
+        try { Message retrievedMessage = pm.getMessage("asd"); } catch (const MessageNotFoundException&) { std::cout<< "Messaggio non trovato (ok)" << std::endl; }
+
+        pm.removeUser("leonardo");
+        pm.removeMessage(message1.getUUID());
+
+        std::cout << "nickname 'leonardo' e messaggio message1 rimossi." << std::endl;
+        std::cout << "------------------------------------------------" << std::endl;
+        // fine test memoria persistente
+
         while (true) {
             int client_socket = accept(server_socket, NULL, NULL);
             if (client_socket < 0) {
@@ -85,7 +149,7 @@ int main() {
                 }
             }
 
-            std::thread t(handle_client, client_socket);
+            std::thread t(handle_client, client_socket, pm);
             t.detach();
         }
 

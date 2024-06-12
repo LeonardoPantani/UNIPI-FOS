@@ -2,8 +2,8 @@ CXX = g++ -std=c++17 -Wall -O2 -g
 
 all: main
 
-main: main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ClientManager.o
-	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ClientManager.o -lssl -lcrypto
+main: main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ClientManager.o libs/PersistentMemory.o ../shared-libs/UUID.o
+	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/cryptomanager.o libs/ClientManager.o libs/PersistentMemory.o ../shared-libs/UUID.o -lssl -lcrypto
 
 main.o: main.cpp
 	$(CXX) -c main.cpp -o main.o
@@ -16,6 +16,12 @@ main.o: main.cpp
 
 libs/ClientManager.o: libs/ClientManager.cpp
 	$(CXX) -c libs/ClientManager.cpp -o libs/ClientManager.o
+
+libs/PersistentMemory.o: libs/PersistentMemory.cpp
+	$(CXX) -c libs/PersistentMemory.cpp -o libs/PersistentMemory.o
+
+../shared-libs/UUID.o: ../shared-libs/UUID.cpp
+	$(CXX) -c ../shared-libs/UUID.cpp -o ../shared-libs/UUID.o
 
 clean:
 	rm -f *.o ../shared-libs/*.o libs/*.o main

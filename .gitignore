@@ -43,3 +43,7 @@ Client/main
 # Custom: ignore all private and public keys
 *.priv
 *.pub
+
+# Custom: block persistent memory and key
+persistentMemory.json
+persistentMemoryKey.key

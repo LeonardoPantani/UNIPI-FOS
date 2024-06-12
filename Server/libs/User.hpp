@@ -12,6 +12,8 @@ class User {
         long long creationTime;
 
     public:
+        User() : email(""), nickname(""), password({}) {} // Costruttore di default
+        
         User(const std::string& email, const std::string& nickname, const std::vector<uint8_t>& password) {
             this->email = email;
             this->nickname = nickname;

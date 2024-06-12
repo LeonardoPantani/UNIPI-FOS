@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstring>
 
-void handle_client(int client_socket) {
+void handle_client(int client_socket, PersistentMemory pm) {
     try {
         char buffer[PACKET_SIZE];
         while (true) {
