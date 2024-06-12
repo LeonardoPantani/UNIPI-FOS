@@ -19,7 +19,7 @@ int activeConnections = 0;
 // test memoria persistente
 #include "libs/PersistentMemory.hpp"
 const std::string dataFilePath = "persistentMemory.json"; // file memoria persistente
-const std::string keyFilePath = "persistentMemoryKey.key"; // file contenente la chiave per decriptare e criptare
+const std::string keyFilePath = "persistentMemory.key"; // file contenente la chiave per decriptare e criptare
 
 int main() {
     try {

@@ -8,12 +8,24 @@
 #include <unistd.h>
 #include <string>
 #include <vector>
+#include <csignal>
 
 const std::string configPath = "config.conf";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxAttempsToConnect"};
 const int connectionInterval = 5;
 
+volatile sig_atomic_t keepRunning = 1;
+
+void signalHandler(int signal) {
+    if (signal == SIGINT) {
+        std::cout << "\n> Client in chiusura." << std::endl;
+        keepRunning = 0;
+    }
+}
+
 int main() {
+    //std::signal(SIGINT, signalHandler); non attivo perché se un client è connesso non termina
+
     try {
         ConfigManager configManager(configPath, configKeys);
 
@@ -29,8 +41,8 @@ int main() {
         std::cout << "> Max. tentativi connessione: " << maxAttempsToConnect << std::endl;
         std::cout << std::endl;
 
-        int sock;
-        while (true) {
+        int sock = 0;
+        while (keepRunning) {
             sock = socket(AF_INET, SOCK_STREAM, 0);
             if (sock == -1) { continue; }
 
@@ -47,6 +59,11 @@ int main() {
                 continue;
             }
             break;
+        }
+
+        if (!keepRunning) {
+            close(sock);
+            return 0;
         }
 
         std::cout << "> Connessione stabilita." << std::endl;

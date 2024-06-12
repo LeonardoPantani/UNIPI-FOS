@@ -46,4 +46,4 @@ Client/main
 
 # Custom: block persistent memory and key
 persistentMemory.json
-persistentMemoryKey.key
+persistentMemory.key
