@@ -43,8 +43,11 @@ int main() {
             throw std::runtime_error("Creazione socket fallita.");
         }
 
-        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-            throw std::runtime_error("Operazione setsockopt fallita.");
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+            throw std::runtime_error("Operazione setsockopt SO_REUSEADDR fallita.");
+        }
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt))) {
+            throw std::runtime_error("Operazione setsockopt SO_REUSEPORT fallita.");
         }
 
         sockaddr_in server_addr;
@@ -69,7 +72,7 @@ int main() {
             }
             pool.enqueue([new_server_socket](std::thread::id id) { handle_client(new_server_socket, id); });
         }
-        
+
         close(server_socket);
     } catch (const std::exception& e) {
         std::cerr << "[!] " << e.what() << std::endl;
