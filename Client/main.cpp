@@ -16,15 +16,18 @@ const int connectionInterval = 5;
 
 volatile sig_atomic_t keepRunning = 1;
 
-void signalHandler(int signal) {
-    if (signal == SIGINT) {
-        std::cout << "\n> Client in chiusura." << std::endl;
-        keepRunning = 0;
-    }
+// Handler per il segnale CTRL+C (SIGINT)
+void signalHandler(int s) {
+    keepRunning = false;
 }
 
 int main() {
-    //std::signal(SIGINT, signalHandler); non attivo perché se un client è connesso non termina
+    // gestione segnale interruzione
+    struct sigaction sigIntHandler;
+    sigIntHandler.sa_handler = signalHandler;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = 0;
+    sigaction(SIGINT, &sigIntHandler, NULL);
 
     try {
         ConfigManager configManager(configPath, configKeys);
@@ -73,7 +76,7 @@ int main() {
         std::vector<char> serializedHello = helloPacket.serialize();
         send(sock, serializedHello.data(), serializedHello.size(), 0);
 
-        handle_server(sock);
+        handle_server(sock, keepRunning);
 
         close(sock);
     } catch (const std::exception& e) {

@@ -8,6 +8,7 @@
 #include <vector>
 #include <cstring>
 #include <thread>
+#include <atomic>
 
 #include "../../shared-libs/Packet.hpp"
 #include "PersistentMemory.hpp"

@@ -88,7 +88,7 @@ bool validateLength(const std::string& arg, size_t maxLength) {
     return arg.length() <= maxLength;
 }
 
-void handle_server(int server_socket) {
+void handle_server(int server_socket, volatile sig_atomic_t keepRunning) {
     try {
         CryptoManager cryptoManager;
 
@@ -108,10 +108,8 @@ void handle_server(int server_socket) {
         }
 
         std::string userInput;
-        while (true) {
-            std::cout << "Comando: ";
-            std::getline(std::cin, userInput);
-
+        std::cout << "Comando: ";
+        while (keepRunning && std::getline(std::cin, userInput)) {
             std::vector<std::string> tokens = splitInput(userInput);
             if (tokens.empty()) {
                 std::cout << "[!] Inserisci un comando." << std::endl;
@@ -219,13 +217,16 @@ void handle_server(int server_socket) {
                 continue;
             }
 
-            Packet otherPacket(PacketType::OTHER, userInput);
+            /* Packet otherPacket(PacketType::OTHER, userInput);
             std::vector<char> serializedOther = otherPacket.serialize();
             if (write(server_socket, serializedOther.data(), serializedOther.size()) == -1) {
                 std::cerr << "[!] Errore nella scrittura sul server_socket." << std::endl;
                 break;
-            }
+            } */
+
+           if(keepRunning) std::cout << "Comando: ";
         }
+        std::cout << std::endl;
 
         close(server_socket);
     } catch (const std::exception& e) {

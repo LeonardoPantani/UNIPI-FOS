@@ -7,14 +7,7 @@ ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
 }
 
 ThreadPool::~ThreadPool() {
-    {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        stop = true;
-    }
-    condition.notify_all();
-    for (std::thread &worker : workers) {
-        worker.join();
-    }
+    stopAll();
 }
 
 void ThreadPool::enqueue(std::function<void(std::thread::id)> task) {
@@ -23,6 +16,20 @@ void ThreadPool::enqueue(std::function<void(std::thread::id)> task) {
         tasks.push(task);
     }
     condition.notify_one();
+}
+
+void ThreadPool::stopAll() {
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        stop = true;
+    }
+    condition.notify_all();
+
+    for (std::thread &worker : workers) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
 }
 
 void ThreadPool::worker() {

@@ -47,3 +47,6 @@ Client/main
 # Custom: block persistent memory and key
 persistentMemory.json
 persistentMemory.key
+
+# Custom: notes file
+notes.txt
