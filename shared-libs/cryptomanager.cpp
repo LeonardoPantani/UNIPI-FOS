@@ -1,10 +1,10 @@
 #include "cryptomanager.hpp"
 
 CryptoManager::CryptoManager(const std::string& privateKeyPath, const std::string& publicKeyPath)
-    : privateKeyPath(privateKeyPath), publicKeyPath(publicKeyPath) {}
+    : mPrivateKeyPath(privateKeyPath), mPublicKeyPath(publicKeyPath) {}
 
 CryptoManager::CryptoManager()
-    : privateKeyPath("key.priv"), publicKeyPath("key.pub") {}
+    : mPrivateKeyPath("key.priv"), mPublicKeyPath("key.pub") {}
 
 bool CryptoManager::fileExists(const std::string& fileName) {
     struct stat buffer;
@@ -12,7 +12,7 @@ bool CryptoManager::fileExists(const std::string& fileName) {
 }
 
 bool CryptoManager::generateRSAKey() {
-    if (fileExists(privateKeyPath) || fileExists(publicKeyPath)) {
+    if (fileExists(mPrivateKeyPath) || fileExists(mPublicKeyPath)) {
         return false;
     }
 
@@ -39,7 +39,7 @@ bool CryptoManager::generateRSAKey() {
 
     EVP_PKEY_CTX_free(ctx);
 
-    FILE *privateFile = fopen(privateKeyPath.c_str(), "wb");
+    FILE *privateFile = fopen(mPrivateKeyPath.c_str(), "wb");
     if (!privateFile) {
         EVP_PKEY_free(pkey);
         throw std::runtime_error("Errore nell'apertura del file per la chiave privata");
@@ -52,7 +52,7 @@ bool CryptoManager::generateRSAKey() {
     }
     fclose(privateFile);
 
-    FILE *publicFile = fopen(publicKeyPath.c_str(), "wb");
+    FILE *publicFile = fopen(mPublicKeyPath.c_str(), "wb");
     if (!publicFile) {
         EVP_PKEY_free(pkey);
         throw std::runtime_error("Errore nell'apertura del file per la chiave pubblica");

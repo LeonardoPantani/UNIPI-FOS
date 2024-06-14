@@ -13,12 +13,12 @@
 
 class PersistentMemory {
     private:
-        std::string filePath;
-        std::string keyFilePath;
-        unsigned char key[32];
-        unsigned char iv[16];
-        std::unordered_map<std::string, User> userMap;
-        std::unordered_map<std::string, Message> messageMap;
+        std::string mDataFilePath;
+        std::string mKeyFilePath;
+        unsigned char mKey[32];
+        unsigned char mIV[16];
+        std::unordered_map<std::string, User> mUserMap;
+        std::unordered_map<std::string, Message> mMessageMap;
 
         bool loadKey();
         void saveKey();
@@ -28,7 +28,8 @@ class PersistentMemory {
         std::string decrypt(const std::string& cipherText);
 
     public:
-        PersistentMemory(const std::string& filePath, const std::string& keyFilePath);
+        PersistentMemory(const std::string& dataFilePath, const std::string& keyFilePath);
+        PersistentMemory();
         ~PersistentMemory();
 
         void addUser(const User& user);

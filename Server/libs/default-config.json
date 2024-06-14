@@ -2,5 +2,5 @@
     "configVersion": 0.3,
     "serverIP": "127.0.0.1",
     "serverPort": 25567,
-    "threadPoolSize": 100
+    "maxClients": 100
 }

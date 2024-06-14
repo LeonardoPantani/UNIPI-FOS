@@ -1,7 +1,6 @@
 #include "../shared-libs/configmanager.hpp"
 #include "../shared-libs/cryptomanager.hpp"
 
-#include "libs/ThreadPool.hpp"
 #include "libs/ClientManager.hpp"
 #include "libs/PersistentMemory.hpp"
 
@@ -14,20 +13,27 @@
 #include <vector>
 #include <mutex>
 #include <csignal>
+#include <atomic>
 
-// Pool di thread
-ThreadPool* pool = nullptr;
+// Memoria persistente
+PersistentMemory* memory = nullptr;
+
+// Controllo limite connessioni
+std::mutex connectionMutex;
+int activeConnections = 0;
 
 // Handler per il segnale CTRL+C (SIGINT)
+std::vector<std::thread> threads;
+volatile std::atomic<bool> serverRunning(true);
+void signalHandler(int s);
 void signalHandler(int s) {
-    if (pool) {
-        pool->stopAll(); // TODO: se si esegue CTRL+C e nessun client si è mai connesso è necessario eseguirlo due volte invece di una sola
-    }
+    std::cout << "\n> Terminazione server." << std::endl;
+    serverRunning.store(false);
 }
 
 // Percorso del file di configurazione
 const std::string configPath = "config.json";
-const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "threadPoolSize"};
+const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
 
 // Memoria persistente
 const std::string dataFilePath = "persistentMemory.json"; // file memoria persistente
@@ -47,16 +53,15 @@ int main() {
         std::string configVersion = configManager.getString("configVersion");
         std::string serverIP = configManager.getString("serverIP");
         int serverPort = configManager.getInt("serverPort");
-        int threadPoolSize = configManager.getInt("threadPoolSize");
+        int maxClients = configManager.getInt("maxClients");
 
         std::cout << "FILE DI CONFIGURAZIONE SERVER (v." << configVersion <<") CARICATO: " << std::endl;
         std::cout << "> Indirizzo IP: " << serverIP << std::endl;
         std::cout << "> Porta: " << serverPort << std::endl;
-        std::cout << "> Dimensione pool di thread: " << threadPoolSize << std::endl;
+        std::cout << "> Max numero client: " << maxClients << std::endl;
         std::cout << std::endl;
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-        int new_server_socket;
         int opt = 1;
         if (server_socket == -1) {
             throw std::runtime_error("Creazione socket fallita.");
@@ -75,7 +80,7 @@ int main() {
         server_addr.sin_addr.s_addr = inet_addr(serverIP.c_str());
         int addrLen = sizeof(server_addr);
 
-        if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        if (bind(server_socket, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) < 0) {
             throw std::runtime_error("Binding fallito.");
         }
 
@@ -83,18 +88,53 @@ int main() {
             throw std::runtime_error("Listen fallito.");
         }
 
-        pool = new ThreadPool(threadPoolSize);
+        memory = new PersistentMemory(dataFilePath, keyFilePath);
 
-        while (true) {
-            new_server_socket = accept(server_socket, (struct sockaddr *)&server_addr, (socklen_t *)&addrLen);
-            if (new_server_socket < 0) {
-                break;
+        while (serverRunning) {
+            int client_socket = accept(server_socket, NULL, NULL);
+            if (client_socket < 0) {
+                if (errno == EINTR && !serverRunning) {
+                    break;
+                }
+                std::cerr << "Errore durante l'accettazione della connessione." << std::endl;
+                continue;
             }
 
-            (*pool).enqueue([new_server_socket](std::thread::id id) { handle_client(new_server_socket, id); });
+            {
+                std::lock_guard<std::mutex> lock(connectionMutex);
+                if (activeConnections >= maxClients) {
+                    Packet fullPacket(PacketType::SERVER_FULL);
+                    std::vector<char> serialized = fullPacket.serialize();
+                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
+                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
+                        close(client_socket);
+                        continue;
+                    }
+                    close(client_socket);
+                    continue;
+                } else {
+                    // il server invia per prima l'HELLO
+                    Packet helloPacket(PacketType::HELLO);
+                    std::vector<char> serialized = helloPacket.serialize();
+                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
+                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
+                        close(client_socket);
+                        continue;
+                    }
+                }
+            }
+
+            threads.emplace_back(handle_client, client_socket);
         }
 
-        delete pool;
+        // Unisci tutti i thread prima di chiudere il server
+        for (std::thread &t : threads) {
+            if (t.joinable()) {
+                t.join();
+            }
+        }
+
+        delete memory;
         close(server_socket);
     } catch (const std::exception& e) {
         std::cerr << "[!] " << e.what() << std::endl;

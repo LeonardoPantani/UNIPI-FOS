@@ -9,16 +9,23 @@
 #include <string>
 #include <vector>
 #include <csignal>
+#include <thread>
 
+// Percorso del file di configurazione
 const std::string configPath = "config.json";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxAttempsToConnect"};
+
+// Intervallo di default tra una connessione e l'altra
 const int connectionInterval = 5;
 
-volatile sig_atomic_t keepRunning = 1;
+// La f. handle_server legge questa variabile per capire se terminare
+volatile sig_atomic_t clientRunning = true;
 
 // Handler per il segnale CTRL+C (SIGINT)
+void signalHandler(int s);
 void signalHandler(int s) {
-    keepRunning = false;
+    clientRunning = false;
+    std::cout << "\n" << "> Terminazione client." << std::endl;
 }
 
 int main() {
@@ -45,7 +52,7 @@ int main() {
         std::cout << std::endl;
 
         int sock = 0;
-        while (keepRunning) {
+        while (clientRunning) {
             sock = socket(AF_INET, SOCK_STREAM, 0);
             if (sock == -1) { continue; }
 
@@ -54,7 +61,7 @@ int main() {
             server_addr.sin_port = htons(serverPort);
             server_addr.sin_addr.s_addr = inet_addr(serverIP.c_str());
 
-            if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+            if (connect(sock, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) == -1) {
                 if(--maxAttempsToConnect == 0) throw std::runtime_error("Impossibile connettersi. Il numero di tentativi massimo è stato raggiunto.");
                 std::cerr << "[!] Impossibile connettersi. Nuovo tentativo in " << connectionInterval << "s..." << std::endl;
                 close(sock);
@@ -64,19 +71,22 @@ int main() {
             break;
         }
 
-        if (!keepRunning) {
+        if (!clientRunning) {
             close(sock);
             return 0;
         }
 
         std::cout << "> Connessione stabilita." << std::endl;
 
-        // mando il pacchetto HELLO come saluto
-        Packet helloPacket(PacketType::HELLO);
-        std::vector<char> serializedHello = helloPacket.serialize();
-        send(sock, serializedHello.data(), serializedHello.size(), 0);
+        // gestione thread inputhandler
+        std::thread userInputThread(handle_user_input, sock, std::ref(clientRunning));
 
-        handle_server(sock, keepRunning);
+        handle_server(sock, clientRunning);
+
+        // unirsi al thread dell'input utente prima di terminare
+        if (userInputThread.joinable()) {
+            userInputThread.join();
+        }
 
         close(sock);
     } catch (const std::exception& e) {

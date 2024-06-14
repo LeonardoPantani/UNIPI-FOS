@@ -1,16 +1,16 @@
 #include "PersistentMemory.hpp"
 
-PersistentMemory::PersistentMemory(const std::string& filePath, const std::string& keyFilePath)  : filePath(filePath), keyFilePath(keyFilePath) {
+PersistentMemory::PersistentMemory(const std::string& dataFilePath, const std::string& keyFilePath)  : mDataFilePath(dataFilePath), mKeyFilePath(keyFilePath) {
     if (!loadKey()) {
-        std::ifstream file(filePath);
+        std::ifstream file(dataFilePath);
         if (file.is_open()) { // no chiave ma sì memoria (problema)
-            throw std::runtime_error("Impossibile decriptare la memoria persistente in assenza della chiave al percorso '" + keyFilePath + "'. Ripristina la chiave oppure elimina la memoria persistente al percorso '" + filePath + "' e ri-esegui questo programma per continuare.");
+            throw std::runtime_error("Impossibile decriptare la memoria persistente in assenza della chiave al percorso '" + keyFilePath + "'. Ripristina la chiave oppure elimina la memoria persistente al percorso '" + dataFilePath + "' e ri-esegui questo programma per continuare.");
         } else { // nè chiave nè memoria (creo da zero)
             //std::cout << "Chiave e memoria persistente creati." << std::endl;
         }
     } else {
         if (!loadFromFile()) { // sì chiave ma no memoria
-           throw std::runtime_error("Memoria persistente non trovata al percorso '" + filePath + "' ma chiave presente. Ripristina la memoria persistente oppure elimina la chiave al percorso '" + keyFilePath + "' e ri-esegui questo programma per continuare.");
+           throw std::runtime_error("Memoria persistente non trovata al percorso '" + dataFilePath + "' ma chiave presente. Ripristina la memoria persistente oppure elimina la chiave al percorso '" + keyFilePath + "' e ri-esegui questo programma per continuare.");
         } else { // sì chiave e memoria
             //std::cout << "Lettura dalla memoria persistente completata." << std::endl;
         }
@@ -22,41 +22,39 @@ PersistentMemory::~PersistentMemory() {
 }
 
 bool PersistentMemory::loadKey() {
-    std::ifstream keyFile(keyFilePath, std::ios::binary);
+    std::ifstream keyFile(mKeyFilePath, std::ios::binary);
     if (keyFile.is_open()) {
-        keyFile.read(reinterpret_cast<char*>(key), sizeof(key));
-        keyFile.read(reinterpret_cast<char*>(iv), sizeof(iv));
+        keyFile.read(reinterpret_cast<char*>(mKey), sizeof(mKey));
+        keyFile.read(reinterpret_cast<char*>(mIV), sizeof(mIV));
         keyFile.close();
         return true; // la chiave già c'era
     } else {
-        std::ifstream file(filePath, std::ios::binary);
+        std::ifstream file(mDataFilePath, std::ios::binary);
         if(file.is_open()) { file.close(); return false; } // la chiave non c'è ma la memoria persistente sì, non creo la nuova chiave per far comparire il messaggio di avviso all'utente
-
-        RAND_bytes(key, sizeof(key));
-        RAND_bytes(iv, sizeof(iv));
+        RAND_bytes(mKey, sizeof(mKey));
+        RAND_bytes(mIV, sizeof(mIV));
         saveKey();
         return false; // la chiave è stata creata
     }
 }
 
 void PersistentMemory::saveKey() {
-    std::ofstream keyFile(keyFilePath, std::ios::binary);
+    std::ofstream keyFile(mKeyFilePath, std::ios::binary);
     if (!keyFile.is_open()) {
         throw std::runtime_error("Impossibile aprire il file chiave in scrittura.");
     }
-    keyFile.write(reinterpret_cast<const char*>(key), sizeof(key));
-    keyFile.write(reinterpret_cast<const char*>(iv), sizeof(iv));
+    keyFile.write(reinterpret_cast<const char*>(mKey), sizeof(mKey));
+    keyFile.write(reinterpret_cast<const char*>(mIV), sizeof(mIV));
     keyFile.close();
 }
 
 bool PersistentMemory::loadFromFile() {
-    std::ifstream file(filePath);
+    std::ifstream file(mDataFilePath);
     if (!file.is_open()) {
         return false; // memoria persistente non presente
     }
 
-    std::string encryptedData((std::istreambuf_iterator<char>(file)),
-                              std::istreambuf_iterator<char>());
+    std::string encryptedData((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     file.close();
 
     if (!encryptedData.empty()) {
@@ -69,7 +67,7 @@ bool PersistentMemory::loadFromFile() {
                 userJson["nickname"], 
                 userJson["password"].get<std::vector<uint8_t>>()
             );
-            userMap[user.getNickname()] = user;
+            mUserMap[user.getNickname()] = user;
         }
 
         for (const auto& messageJson : jsonData["messages"]) {
@@ -78,7 +76,7 @@ bool PersistentMemory::loadFromFile() {
                 messageJson["author"], 
                 messageJson["body"]
             );
-            messageMap[message.getUUID()] = message;
+            mMessageMap[message.getUUID()] = message;
         }
         return true; // memoria persistente ok
     }
@@ -88,7 +86,11 @@ bool PersistentMemory::loadFromFile() {
 
 void PersistentMemory::saveToFile() {
     nlohmann::json jsonData;
-    for (const auto& pair : userMap) {
+
+    jsonData["users"] = nlohmann::json::array();
+    jsonData["messages"] = nlohmann::json::array();
+
+    for (const auto& pair : mUserMap) {
         const auto& user = pair.second;
         jsonData["users"].push_back({
             {"email", user.getEmail()},
@@ -98,7 +100,7 @@ void PersistentMemory::saveToFile() {
         });
     }
 
-    for (const auto& pair : messageMap) {
+    for (const auto& pair : mMessageMap) {
         const auto& message = pair.second;
         jsonData["messages"].push_back({
             {"uuid", message.getUUID()},
@@ -112,10 +114,11 @@ void PersistentMemory::saveToFile() {
     std::string jsonStr = jsonData.dump();
     std::string encryptedData = encrypt(jsonStr);
 
-    std::ofstream file(filePath, std::ios::trunc);
+    std::ofstream file(mDataFilePath, std::ios::trunc);
     file << encryptedData;
     file.close();
 }
+
 
 std::string PersistentMemory::encrypt(const std::string& plainText) {
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -125,7 +128,7 @@ std::string PersistentMemory::encrypt(const std::string& plainText) {
     int cipherTextLen;
     std::string cipherText(plainText.size() + 128, '\0');
 
-    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, iv))
+    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, mKey, mIV))
         throw std::runtime_error("Inizializzazione cifratura fallita.");
 
     if (1 != EVP_EncryptUpdate(ctx, reinterpret_cast<unsigned char*>(&cipherText[0]), &len, 
@@ -139,7 +142,7 @@ std::string PersistentMemory::encrypt(const std::string& plainText) {
 
     EVP_CIPHER_CTX_free(ctx);
 
-    return cipherText.substr(0, cipherTextLen);
+    return cipherText.substr(0, static_cast<size_t>(cipherTextLen));
 }
 
 std::string PersistentMemory::decrypt(const std::string& cipherText) {
@@ -150,7 +153,7 @@ std::string PersistentMemory::decrypt(const std::string& cipherText) {
     int plainTextLen;
     std::string plainText(cipherText.size(), '\0');
 
-    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, iv))
+    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, mKey, mIV))
         throw std::runtime_error("Inizializzazione decifratura fallita.");
 
     if (1 != EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char*>(&plainText[0]), &len, 
@@ -164,22 +167,22 @@ std::string PersistentMemory::decrypt(const std::string& cipherText) {
 
     EVP_CIPHER_CTX_free(ctx);
 
-    return plainText.substr(0, plainTextLen);
+    return plainText.substr(0, static_cast<size_t>(plainTextLen));
 }
 
 void PersistentMemory::addUser(const User& user) {
-    userMap[user.getNickname()] = user;
-    saveToFile();
+    mUserMap[user.getNickname()] = user;
+    //saveToFile();
 }
 
 void PersistentMemory::addMessage(const Message& message) {
-    messageMap[message.getUUID()] = message;
-    saveToFile();
+    mMessageMap[message.getUUID()] = message;
+    //saveToFile();
 }
 
 std::vector<User> PersistentMemory::getUsers() {
     std::vector<User> users;
-    for (const auto& pair : userMap) {
+    for (const auto& pair : mUserMap) {
         users.push_back(pair.second);
     }
     return users;
@@ -187,34 +190,34 @@ std::vector<User> PersistentMemory::getUsers() {
 
 std::vector<Message> PersistentMemory::getMessages() {
     std::vector<Message> messages;
-    for (const auto& pair : messageMap) {
+    for (const auto& pair : mMessageMap) {
         messages.push_back(pair.second);
     }
     return messages;
 }
 
 User PersistentMemory::getUser(const std::string& nickname) {
-    auto it = userMap.find(nickname);
-    if (it != userMap.end()) {
+    auto it = mUserMap.find(nickname);
+    if (it != mUserMap.end()) {
         return it->second;
     }
     throw UserNotFoundException();
 }
 
 Message PersistentMemory::getMessage(const std::string& uuid) {
-    auto it = messageMap.find(uuid);
-    if (it != messageMap.end()) {
+    auto it = mMessageMap.find(uuid);
+    if (it != mMessageMap.end()) {
         return it->second;
     }
     throw MessageNotFoundException();
 }
 
 void PersistentMemory::removeUser(const std::string& nickname) {
-    userMap.erase(nickname);
-    saveToFile();
+    mUserMap.erase(nickname);
+    //saveToFile();
 }
 
 void PersistentMemory::removeMessage(const std::string& uuid) {
-    messageMap.erase(uuid);
-    saveToFile();
+    mMessageMap.erase(uuid);
+    //saveToFile();
 }

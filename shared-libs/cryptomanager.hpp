@@ -22,8 +22,8 @@ public:
     std::pair<unsigned char*, int> getCertFromFile(const std::string& certFilePath);
 
 private:
-    std::string privateKeyPath;
-    std::string publicKeyPath;
+    std::string mPrivateKeyPath;
+    std::string mPublicKeyPath;
 
     bool fileExists(const std::string& fileName);
 };
