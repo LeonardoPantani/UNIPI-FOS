@@ -1,4 +1,6 @@
 #pragma once
+#ifndef MESSAGE_HPP
+#define MESSAGE_HPP
 
 #include "UUID.hpp"
 #include <string>
@@ -26,3 +28,5 @@ class Message {
         std::string getBody() const { return mBody; }
         long long getCreationTime() const { return mCreationTime; }
 };
+
+#endif

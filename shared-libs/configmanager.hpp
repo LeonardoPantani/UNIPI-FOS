@@ -1,4 +1,6 @@
 #pragma once
+#ifndef CONFIGMANAGER_HPP
+#define CONFIGMANAGER_HPP
 
 #include <unordered_map>
 #include <vector>
@@ -25,3 +27,5 @@ public:
     std::string getString(const std::string& key);
     int getInt(const std::string& key);
 };
+
+#endif

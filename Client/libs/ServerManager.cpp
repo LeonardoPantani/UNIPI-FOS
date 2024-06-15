@@ -19,107 +19,106 @@ Command getCommand(const std::string& command) {
     }
 }
 
-// Funzione per dividere una stringa in argomenti
-std::vector<std::string> splitInput(const std::string& input) {
-    std::istringstream iss(input);
-    std::vector<std::string> tokens;
-    std::string token;
-    while (iss >> token) {
-        tokens.push_back(token);
-    }
-    return tokens;
-}
-
-// lettura nascosta della password. Purtroppo va separata per Windows (mostra *) e Linux (non mostra l'input)
-std::string readPassword() {
-    std::string password;
-    bool illegalPassword = false;
-
-    do {
-        std::cout << (illegalPassword ? "\n" : "") << "Inserisci password: ";
-        #ifdef _WIN32
-            char ch;
-            password.clear();
-            while ((ch = _getch()) != '\r') {
-                if (ch == '\b' && !password.empty()) {
-                    std::cout << "\b \b";
-                    password.pop_back();
-                } else if (ch != '\b') {
-                    password.push_back(ch);
-                    std::cout << '*';
-                }
-            }
-            std::cout << std::endl;
-        #else
-            struct termios oldt, newt;
-            tcgetattr(STDIN_FILENO, &oldt);
-            newt = oldt;
-            newt.c_lflag &= static_cast<tcflag_t>(~ECHO);
-            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-            std::getline(std::cin, password);
-            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-        #endif
-        illegalPassword = true;
-    } while (password.empty());
-    std::cout << std::endl;
-    return password;
-}
-
-// Funzione per validare un'email tramite regex
-bool isValidEmail(const std::string& email) {
-    const std::regex pattern(R"((\w+)(\.{1}\w+)*@(\w+)(\.{1}\w+)*(\.\w{2,})+)");
-    return std::regex_match(email, pattern);
-}
-
-// Funzione per validare lunghezza degli argomenti
-bool validateLength(const std::string& arg, size_t maxLength) {
-    return arg.length() <= maxLength;
-}
-
 void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
+    bool serverClosing = false;
+
     try {
         char buffer[PACKET_SIZE];
-        memset(buffer, 0, sizeof(buffer));
-        
-        // il server mi ha mandato il primo messaggio
-        int bytes_read = read(server_socket, buffer, sizeof(buffer));
-        if (bytes_read == PACKET_SIZE) {
-            Packet packet = Packet::deserialize(buffer, bytes_read);
 
-            if (packet.mType == PacketType::SERVER_FULL) { // se mi dà SERVER_FULL, mi disconnetto
-                clientRunning = false;
-                throw std::runtime_error("Il server non accetta ulteriori client al momento.");
-            } else if (packet.mType == PacketType::HELLO) { // se mi dice HELLO, rispondo HELLO
-                Packet helloPacket(PacketType::HELLO);
-                std::vector<char> serializedHello = helloPacket.serialize();
-                send(server_socket, serializedHello.data(), serializedHello.size(), 0);
-            } else { // (non dovrebbe succedere, per questo stampo il tipo a schermo)
-                std::cout << "Server > " << packet.getTypeAsString() << std::endl;
-            }
-        } else {
-            throw std::runtime_error("Formato pacchetto errato.");
-        }
-
-        while (clientRunning) {
+        while(clientRunning && !serverClosing) {
             memset(buffer, 0, sizeof(buffer));
-            bytes_read = read(server_socket, buffer, sizeof(buffer));
-            if (bytes_read == PACKET_SIZE) {
-                Packet packet = Packet::deserialize(buffer, bytes_read);
-                std::cout << "Server > " << packet.getTypeAsString() << std::endl;
 
-                // il server mi ha detto che sta chiudendo, per questo termino
-                if(packet.mType == SERVER_CLOSING) {
-                    clientRunning = false;
+            // Configura il file descriptor set per la select
+            fd_set read_fds;
+            FD_ZERO(&read_fds);
+            FD_SET(server_socket, &read_fds);
+
+            // Imposta il timeout della select
+            struct timeval timeout;
+            timeout.tv_sec = 1;
+            timeout.tv_usec = 0;
+
+            // Chiama select per vedere se ci sono dati pronti per la lettura
+            int select_result = select(server_socket + 1, &read_fds, NULL, NULL, &timeout);
+            if (select_result <= 0) { // se eseguo CTRL+C (o non c'è niente da leggere), questo branch è eseguito
+                continue;
+            }
+
+            // Ci sono dati disponibili per la lettura, da qui in poi
+            ssize_t bytes_read = read(server_socket, buffer, sizeof(buffer));
+            if (bytes_read <= 0) {
+                std::cerr << "> La connessione col server si è chiusa inaspettatamente." << std::endl;
+                break;
+            } else if (bytes_read != PACKET_SIZE) {
+                throw std::runtime_error("Formato pacchetto errato.");
+            }
+
+            Packet packet = Packet::deserialize(buffer, bytes_read);
+            std::cout << "Server > " << packet.getTypeAsString() << std::endl;
+
+            switch (packet.mType) { // pacchetti inviati dal server
+                case PacketType::HELLO: {
+                    Packet helloPacket(PacketType::HELLO);
+                    std::vector<char> serializedHello = helloPacket.serialize();
+                    if(write(server_socket, serializedHello.data(), serializedHello.size()) == -1) {
+                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+                    }
                 }
-            } else if (bytes_read > 0) {
-                std::cerr << "[!] Ricevuto pacchetto di dimensione errata." << std::endl;
+                break;
+                case PacketType::SERVER_FULL: {
+                    clientRunning = false;
+                    throw std::runtime_error("Il server non accetta ulteriori client al momento.");
+                }
+                break;
+                case PacketType::SERVER_CLOSING: {
+                    clientRunning = false;
+                    serverClosing = true;
+                }
+                break;
+                case PacketType::LOGIN_OK: {
+
+                }
+                break;
+                case PacketType::REGISTER_OK: {
+
+                }
+                break;
+                case PacketType::ERROR: {
+
+                }
+                break;
+                case PacketType::BBS_LIST: {
+
+                }
+                break;
+                case PacketType::BBS_GET: {
+
+                }
+                break;
+                case PacketType::BBS_ADD: {
+
+                }
+                break;
+                default: {
+
+                }
+                break;
             }
         }
-        close(server_socket);
+
+        // se il server sta chiudendo ignorerà i BYE, altrimenti lo invio
+        if(!serverClosing) {
+            Packet byePacket(PacketType::BYE);
+            std::vector<char> serializedHello = byePacket.serialize();
+            if (write(server_socket, serializedHello.data(), serializedHello.size()) == -1) {
+                std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+            }
+        }
     } catch (const std::exception& e) {
         clientRunning = false;
-        std::cerr << "[!] Si è verificato un errore grave: " << e.what() << std::endl;
+        std::cerr << "[!] Errore: " << e.what() << std::endl;
     }
+    close(server_socket);
 }
 
 void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) {

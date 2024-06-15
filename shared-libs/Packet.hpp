@@ -1,4 +1,7 @@
 #pragma once
+#ifndef PACKET_HPP
+#define PACKET_HPP
+
 #include <vector>
 #include <iostream>
 #include <string>
@@ -6,18 +9,18 @@
 #include <stdexcept>
 
 enum PacketType {
-    HELLO,             /* sent as first communication */
-    BYE,               /* sent by client on connection closing */
-    SERVER_FULL,       /* sent by server when it is full */
-    SERVER_CLOSING,    /* sent by server when is getting terminated */
-    LOGIN_REQUEST,     /* sent by client to request login */
-    REGISTER_REQUEST,  /* sent by client to request register */
-    LOGIN_OK,          /* sent by server to answer login request */
-    REGISTER_OK,       /* sent by server to answer register request */
-    ERROR,             /* error */
-    BBS_LIST,          /* command list */
-    BBS_GET,           /* command get */
-    BBS_ADD            /* command add */
+    HELLO,             /* sent by server (request) and client (answer): first communication */
+    BYE,               /* sent by client: on connection closing */
+    SERVER_FULL,       /* sent by server: when it is full */
+    SERVER_CLOSING,    /* sent by server: when is getting terminated */
+    LOGIN_REQUEST,     /* sent by client: to request login */
+    REGISTER_REQUEST,  /* sent by client: to request register */
+    LOGIN_OK,          /* sent by server: to answer login request */
+    REGISTER_OK,       /* sent by server: to answer register request */
+    ERROR,             /* sent by client & server: error */
+    BBS_LIST,          /* sent by client (request) and server (answer): command list */
+    BBS_GET,           /* sent by client (request) and server (answer): command get */
+    BBS_ADD            /* sent by client (request) and server (answer): command add */
 };
 
 const size_t DATA_SIZE = 2048; // includes the \0 character, so the limit of writable characters is DATA_SIZE-1
@@ -89,3 +92,5 @@ struct Packet {
         }
     }
 };
+
+#endif

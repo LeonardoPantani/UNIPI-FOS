@@ -1,4 +1,6 @@
 #pragma once
+#ifndef PERSISTENTMEMORY_HPP
+#define PERSISTENTMEMORY_HPP
 
 #include <string>
 #include <vector>
@@ -7,9 +9,11 @@
 #include <algorithm>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+
 #include "User.hpp"
+#include "Message.hpp"
+
 #include "../../shared-libs/json.hpp"
-#include "../../shared-libs/Message.hpp"
 
 class PersistentMemory {
     private:
@@ -57,3 +61,5 @@ public:
         return "";
     }
 };
+
+#endif

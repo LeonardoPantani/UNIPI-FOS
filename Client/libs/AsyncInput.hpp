@@ -1,4 +1,6 @@
 #pragma once
+#ifndef ASYNCINPUT_HPP
+#define ASYNCINPUT_HPP
 
 #include <iostream>
 #include <string>
@@ -19,3 +21,5 @@ private:
     std::mutex inputLock;
     std::string input;
 };
+
+#endif

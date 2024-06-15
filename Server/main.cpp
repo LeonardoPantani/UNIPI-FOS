@@ -1,6 +1,4 @@
 #include "../shared-libs/configmanager.hpp"
-#include "../shared-libs/cryptomanager.hpp"
-
 #include "libs/ClientManager.hpp"
 #include "libs/PersistentMemory.hpp"
 
@@ -15,13 +13,6 @@
 #include <csignal>
 #include <atomic>
 
-// Memoria persistente
-PersistentMemory* memory = nullptr;
-
-// Controllo limite connessioni
-std::mutex connectionMutex;
-int activeConnections = 0;
-
 // Handler per il segnale CTRL+C (SIGINT)
 std::vector<std::thread> threads;
 volatile std::atomic<bool> serverRunning(true);
@@ -35,9 +26,18 @@ void signalHandler(int s) {
 const std::string configPath = "config.json";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
 
+// Controllo limite connessioni
+std::mutex connectionMutex;
+int activeConnections = 0;
+
 // Memoria persistente
+PersistentMemory* memory = nullptr;
 const std::string dataFilePath = "persistentMemory.json"; // file memoria persistente
 const std::string keyFilePath = "persistentMemory.key"; // file contenente la chiave per decriptare e criptare
+
+// Memoria locale per i client autenticati
+std::mutex authenticatedUsersMutex;
+std::vector<std::string> authenticatedUsers;
 
 int main() {
     // gestione segnale interruzione
@@ -113,7 +113,7 @@ int main() {
                     close(client_socket);
                     continue;
                 } else {
-                    // il server invia per prima l'HELLO
+                    // il server invia per primo l'HELLO
                     Packet helloPacket(PacketType::HELLO);
                     std::vector<char> serialized = helloPacket.serialize();
                     if (write(client_socket, serialized.data(), serialized.size()) < 0) {

@@ -1,4 +1,6 @@
 #pragma once
+#ifndef USER_HPP
+#define USER_HPP
 
 #include <string>
 #include <vector>
@@ -25,3 +27,5 @@ class User {
         std::vector<uint8_t> getPassword() const { return mPassword; }
         long long getCreationTime() const { return mCreationTime; }
 };
+
+#endif
