@@ -41,6 +41,7 @@ class PersistentMemory {
 
         std::vector<User> getUsers();
         std::vector<Message> getMessages();
+        std::vector<Message> getMessages(size_t n);
 
         User getUser(const std::string& email);
         Message getMessage(const std::string& uuid);

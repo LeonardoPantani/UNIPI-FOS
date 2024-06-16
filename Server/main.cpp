@@ -35,10 +35,8 @@ PersistentMemory* memory = nullptr;
 const std::string dataFilePath = "persistentMemory.json"; // file memoria persistente
 const std::string keyFilePath = "persistentMemory.key"; // file contenente la chiave per decriptare e criptare
 
-// Memoria locale per i client autenticati
-std::mutex authenticatedUsersMutex;
-std::vector<std::string> authenticatedUsers;
 
+// Codice principale
 int main() {
     // gestione segnale interruzione
     struct sigaction sigIntHandler;
@@ -127,7 +125,7 @@ int main() {
             threads.emplace_back(handle_client, client_socket);
         }
 
-        // Unisci tutti i thread prima di chiudere il server
+        // unisco tutti i thread prima di chiudere il server
         for (std::thread &t : threads) {
             if (t.joinable()) {
                 t.join();

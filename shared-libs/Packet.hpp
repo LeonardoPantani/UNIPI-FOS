@@ -7,6 +7,7 @@
 #include <string>
 #include <cstring>
 #include <stdexcept>
+#include <algorithm>
 
 enum PacketType {
     HELLO,             /* sent by server (request) and client (answer): first communication */
@@ -14,9 +15,12 @@ enum PacketType {
     SERVER_FULL,       /* sent by server: when it is full */
     SERVER_CLOSING,    /* sent by server: when is getting terminated */
     LOGIN_REQUEST,     /* sent by client: to request login */
-    REGISTER_REQUEST,  /* sent by client: to request register */
     LOGIN_OK,          /* sent by server: to answer login request */
+    REGISTER_REQUEST,  /* sent by client: to request register */
+    REGISTER_CHECK,    /* sent by server (request) and client (answer): to verify email */
     REGISTER_OK,       /* sent by server: to answer register request */
+    LOGOUT_REQUEST,    /* sent by client: to request logout */
+    LOGOUT_OK,         /* sent by server: to answer logout request */
     ERROR,             /* sent by client & server: error */
     BBS_LIST,          /* sent by client (request) and server (answer): command list */
     BBS_GET,           /* sent by client (request) and server (answer): command get */
@@ -71,7 +75,9 @@ struct Packet {
     }
 
     std::string getContent() const {
-        return std::string(mData.begin(), mData.end());
+        auto null_terminator_pos = std::find(mData.begin(), mData.end(), '\0');
+        std::string content(mData.begin(), null_terminator_pos);
+        return content;
     }
 
     std::string getTypeAsString() const {
@@ -82,8 +88,11 @@ struct Packet {
             case PacketType::SERVER_CLOSING: return "SERVER_CLOSING";
             case PacketType::LOGIN_REQUEST: return "LOGIN_REQUEST";
             case PacketType::REGISTER_REQUEST: return "REGISTER_REQUEST";
+            case PacketType::REGISTER_CHECK: return "REGISTER_CHECK";
             case PacketType::LOGIN_OK: return "LOGIN_OK";
             case PacketType::REGISTER_OK: return "REGISTER_OK";
+            case PacketType::LOGOUT_REQUEST: return "LOGOUT_REQUEST";
+            case PacketType::LOGOUT_OK: return "LOGOUT_OK";
             case PacketType::ERROR: return "ERROR";
             case PacketType::BBS_LIST: return "BBS_LIST";
             case PacketType::BBS_GET: return "BBS_GET";

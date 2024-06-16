@@ -65,16 +65,20 @@ bool PersistentMemory::loadFromFile() {
             User user(
                 userJson["email"], 
                 userJson["nickname"], 
-                userJson["password"].get<std::vector<uint8_t>>()
+                userJson["password"].get<std::vector<uint8_t>>(),
+                userJson["salt"].get<std::vector<uint8_t>>(),
+                userJson["creationTime"]
             );
             mUserMap[user.getNickname()] = user;
         }
 
         for (const auto& messageJson : jsonData["messages"]) {
             Message message(
+                messageJson["uuid"],
                 messageJson["title"], 
                 messageJson["author"], 
-                messageJson["body"]
+                messageJson["body"],
+                messageJson["creationTime"]
             );
             mMessageMap[message.getUUID()] = message;
         }
@@ -96,6 +100,7 @@ void PersistentMemory::saveToFile() {
             {"email", user.getEmail()},
             {"nickname", user.getNickname()},
             {"password", user.getPassword()},
+            {"salt", user.getSalt()},
             {"creationTime", user.getCreationTime()}
         });
     }
@@ -118,7 +123,6 @@ void PersistentMemory::saveToFile() {
     file << encryptedData;
     file.close();
 }
-
 
 std::string PersistentMemory::encrypt(const std::string& plainText) {
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -172,12 +176,12 @@ std::string PersistentMemory::decrypt(const std::string& cipherText) {
 
 void PersistentMemory::addUser(const User& user) {
     mUserMap[user.getNickname()] = user;
-    //saveToFile();
+    saveToFile();
 }
 
 void PersistentMemory::addMessage(const Message& message) {
     mMessageMap[message.getUUID()] = message;
-    //saveToFile();
+    saveToFile();
 }
 
 std::vector<User> PersistentMemory::getUsers() {
@@ -194,6 +198,23 @@ std::vector<Message> PersistentMemory::getMessages() {
         messages.push_back(pair.second);
     }
     return messages;
+}
+
+std::vector<Message> PersistentMemory::getMessages(size_t n) {
+    std::vector<Message> messages;
+    for (const auto& pair : mMessageMap) {
+        messages.push_back(pair.second);
+    }
+
+    std::sort(messages.begin(), messages.end(), [](const Message& a, const Message& b) {
+        return a.getCreationTime() > b.getCreationTime();
+    });
+
+    if (n > messages.size()) {
+        n = messages.size();
+    }
+
+    return std::vector<Message>(messages.begin(), messages.begin() + static_cast<std::vector<Message>::difference_type>(n));
 }
 
 User PersistentMemory::getUser(const std::string& nickname) {
@@ -214,10 +235,10 @@ Message PersistentMemory::getMessage(const std::string& uuid) {
 
 void PersistentMemory::removeUser(const std::string& nickname) {
     mUserMap.erase(nickname);
-    //saveToFile();
+    saveToFile();
 }
 
 void PersistentMemory::removeMessage(const std::string& uuid) {
     mMessageMap.erase(uuid);
-    //saveToFile();
+    saveToFile();
 }

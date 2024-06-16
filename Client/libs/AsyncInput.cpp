@@ -2,13 +2,17 @@
 
 using namespace std;
 
-AsyncInput::AsyncInput() : continueGettingInput(true), sendOverNextLine(true), input("") {
+AsyncInput::AsyncInput() : continueGettingInput(true), sendOverNextLine(true), paused(false), input("") {
     thread([&]() {
         string synchronousInput;
         char nextCharacter;
         do {
             synchronousInput = "";
             while (continueGettingInput) {
+                while (paused) {
+                    this_thread::yield();
+                }
+
                 while (cin.peek() == EOF) {
                     this_thread::yield();
                 }
@@ -47,4 +51,12 @@ std::string AsyncInput::getLine() {
         sendOverNextLine = true;
         return returnInput;
     }
+}
+
+void AsyncInput::pause() {
+    paused = true;
+}
+
+void AsyncInput::resume() {
+    paused = false;
 }
