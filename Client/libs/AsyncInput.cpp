@@ -1,32 +1,26 @@
 #include "AsyncInput.hpp"
 
-using namespace std;
-
-AsyncInput::AsyncInput() : continueGettingInput(true), sendOverNextLine(true), paused(false), input("") {
-    thread([&]() {
-        string synchronousInput;
+AsyncInput::AsyncInput() : continueGettingInput(true), sendOverNextLine(true), input("") {
+    std::thread([&]() {
+        std::string synchronousInput;
         char nextCharacter;
         do {
             synchronousInput = "";
             while (continueGettingInput) {
-                while (paused) {
-                    this_thread::yield();
+                while (std::cin.peek() == EOF) {
+                    std::this_thread::yield();
                 }
-
-                while (cin.peek() == EOF) {
-                    this_thread::yield();
-                }
-                nextCharacter = cin.get();
+                nextCharacter = std::cin.get();
                 if (nextCharacter == '\n') break;
                 synchronousInput += nextCharacter;
             }
             if (!continueGettingInput) break;
             while (continueGettingInput && !sendOverNextLine) {
-                this_thread::yield();
+                std::this_thread::yield();
             }
             if (!continueGettingInput) break;
             {
-                lock_guard<mutex> lock(inputLock);
+                std::lock_guard<std::mutex> lock(inputLock);
                 input = synchronousInput;
             }
             sendOverNextLine = false;
@@ -40,23 +34,15 @@ AsyncInput::~AsyncInput() {
 
 std::string AsyncInput::getLine() {
     if (sendOverNextLine) {
-        this_thread::sleep_for(chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
         return "";
     } else {
-        string returnInput;
+        std::string returnInput;
         {
-            lock_guard<mutex> lock(inputLock);
+            std::lock_guard<std::mutex> lock(inputLock);
             returnInput = input;
         }
         sendOverNextLine = true;
         return returnInput;
     }
-}
-
-void AsyncInput::pause() {
-    paused = true;
-}
-
-void AsyncInput::resume() {
-    paused = false;
 }
