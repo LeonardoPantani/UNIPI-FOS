@@ -1,5 +1,6 @@
 #include "libs/ServerManager.hpp"
 #include "../shared-libs/configmanager.hpp"
+#include "../shared-libs/crypto.hpp"
 
 #include <iostream>
 #include <sys/socket.h>
@@ -28,6 +29,9 @@ void signalHandler(int s) {
     std::cout << "\n" << "> Terminazione client." << std::endl;
 }
 
+// lettura certificati
+Crypto* crypto = nullptr;
+
 int main() {
     // gestione segnale interruzione
     struct sigaction sigIntHandler;
@@ -50,6 +54,9 @@ int main() {
         std::cout << "> Porta: " << serverPort << std::endl;
         std::cout << "> Max. tentativi connessione: " << maxAttempsToConnect << std::endl;
         std::cout << std::endl;
+
+        // lettura certificati
+        Crypto crypto("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "client.pem");
 
         int sock = 0;
         while (clientRunning) {
@@ -81,6 +88,7 @@ int main() {
         // gestione thread inputhandler
         std::thread userInputThread(handle_user_input, sock, std::ref(clientRunning));
 
+        // avvio thread gestione server
         handle_server(sock, clientRunning);
 
         // unirsi al thread dell'input utente prima di terminare

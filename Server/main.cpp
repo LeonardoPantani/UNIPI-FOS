@@ -1,4 +1,5 @@
 #include "../shared-libs/configmanager.hpp"
+#include "../shared-libs/crypto.hpp"
 #include "libs/ClientManager.hpp"
 #include "libs/PersistentMemory.hpp"
 
@@ -35,6 +36,8 @@ PersistentMemory* memory = nullptr;
 const std::string dataFilePath = "persistentMemory.json"; // file memoria persistente
 const std::string keyFilePath = "persistentMemory.key"; // file contenente la chiave per decriptare e criptare
 
+// lettura certificati
+Crypto* crypto = nullptr;
 
 // Codice principale
 int main() {
@@ -59,6 +62,8 @@ int main() {
         std::cout << "> Max numero client: " << maxClients << std::endl;
         std::cout << std::endl;
 
+        crypto = new Crypto("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server.pem");
+
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         int opt = 1;
         if (server_socket == -1) {
@@ -76,7 +81,6 @@ int main() {
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(serverPort);
         server_addr.sin_addr.s_addr = inet_addr(serverIP.c_str());
-        int addrLen = sizeof(server_addr);
 
         if (bind(server_socket, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) < 0) {
             throw std::runtime_error("Binding fallito.");
@@ -110,15 +114,6 @@ int main() {
                     }
                     close(client_socket);
                     continue;
-                } else {
-                    // il server invia per primo l'HELLO
-                    Packet helloPacket(PacketType::HELLO);
-                    std::vector<char> serialized = helloPacket.serialize();
-                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
-                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
-                        close(client_socket);
-                        continue;
-                    }
                 }
             }
 

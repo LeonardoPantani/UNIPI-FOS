@@ -17,6 +17,7 @@
 #include "../../shared-libs/json.hpp"
 #include "../../shared-libs/Packet.hpp"
 #include "../../shared-libs/Utils.hpp"
+#include "../../shared-libs/crypto.hpp"
 #include "AsyncInput.hpp"
 
 enum Command {

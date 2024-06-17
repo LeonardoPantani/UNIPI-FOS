@@ -14,6 +14,7 @@
 
 #include "../../shared-libs/Packet.hpp"
 #include "../../shared-libs/Utils.hpp"
+#include "../../shared-libs/crypto.hpp"
 #include "PersistentMemory.hpp"
 #include "User.hpp"
 

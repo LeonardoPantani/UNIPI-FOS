@@ -3,6 +3,8 @@
 bool isVerificationCodeRequired = false;
 bool amIAuthenticated = false;
 
+extern Crypto* crypto;
+
 // Funzione per ottenere il comando dal testo inserito
 Command getCommand(const std::string& command) {
     static const std::map<std::string, Command> commandMap = {
@@ -54,6 +56,14 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
     try {
         char buffer[PACKET_SIZE];
 
+        // invio pacchetto HELLO iniziale al server con corpo
+        Packet firstHelloPacket(PacketType::HELLO);
+        std::vector<char> serializedHello = firstHelloPacket.serialize();
+        if(write(server_socket, serializedHello.data(), serializedHello.size()) == -1) {
+            std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+            throw std::runtime_error("Impossibile inviare HELLO al server.");
+        }
+
         while(clientRunning && !serverClosing) {
             memset(buffer, 0, sizeof(buffer));
 
@@ -87,11 +97,9 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
 
             switch (packet.mType) { // pacchetti inviati dal server
                 case PacketType::HELLO: {
-                    Packet helloPacket(PacketType::HELLO);
-                    std::vector<char> serializedHello = helloPacket.serialize();
-                    if(write(server_socket, serializedHello.data(), serializedHello.size()) == -1) {
-                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                    }
+                    // ho ricevuto i parametri g e p
+                    crypto->setDHParams(packet.getContent());
+                    crypto->printDHParameters();
                 }
                 break;
                 case PacketType::SERVER_FULL: {
@@ -147,8 +155,8 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
         // se il server sta chiudendo ignorerà i BYE, altrimenti lo invio
         if(!serverClosing) {
             Packet byePacket(PacketType::BYE);
-            std::vector<char> serializedHello = byePacket.serialize();
-            if (write(server_socket, serializedHello.data(), serializedHello.size()) == -1) {
+            std::vector<char> serializedBye = byePacket.serialize();
+            if (write(server_socket, serializedBye.data(), serializedBye.size()) == -1) {
                 std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
             }
         }

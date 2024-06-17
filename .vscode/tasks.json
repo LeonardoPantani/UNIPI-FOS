@@ -10,11 +10,15 @@
                 "clean",
                 "--directory=${workspaceFolder}/Server;",
                 "make",
+                "-j",
+                "6",
                 "--directory=${workspaceFolder}/Server;",
                 "make",
                 "clean",
                 "--directory=${workspaceFolder}/Client;",
                 "make",
+                "-j",
+                "6",
                 "--directory=${workspaceFolder}/Client;"
             ],
             "group": {

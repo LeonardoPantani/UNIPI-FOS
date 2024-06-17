@@ -25,6 +25,7 @@ bool isUserAuthenticated(const std::string& nickname) {
 // Variabili da main
 extern PersistentMemory* memory;
 extern volatile std::atomic<bool> serverRunning;
+extern Crypto* crypto;
 
 std::string generateVerificationCode() {
     std::random_device rd; 
@@ -85,6 +86,15 @@ void handle_client(int client_socket) {
             Packet packet = Packet::deserialize(buffer, bytes_read);
             std::cout << "Client > " << packet.getTypeAsString() << std::endl;
             switch (packet.mType) { // pacchetti inviati dal client
+                case PacketType::HELLO: {
+                    // calcolo p e g
+                    Packet answerHelloPacket(PacketType::HELLO, crypto->prepareDHParams()); // invio p e g al client
+                    std::vector<char> serialized = answerHelloPacket.serialize();
+                    if (write(client_socket, serialized.data(), serialized.size()) == -1) {
+                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+                    }
+                }
+                break;
                 case PacketType::BYE: {
                     std::cout << "> Il client " << client_socket << " si è disconnesso." << std::endl;
                     clientQuit = true;

@@ -48,5 +48,11 @@ Client/main
 persistentMemory.json
 persistentMemory.key
 
+# Custom: block certificates
+Server/server.pem
+Client/client.pem
+shared-certificates/ca.pem
+shared-certificates/crl.pem
+
 # Custom: notes file
 notes.txt

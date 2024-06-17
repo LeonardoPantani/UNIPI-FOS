@@ -27,7 +27,7 @@ enum PacketType {
     BBS_ADD            /* sent by client (request) and server (answer): command add */
 };
 
-const size_t DATA_SIZE = 2048; // includes the \0 character, so the limit of writable characters is DATA_SIZE-1
+const size_t DATA_SIZE = 8192;
 const size_t PACKET_SIZE = sizeof(PacketType) + DATA_SIZE;
 
 struct Packet {
@@ -48,6 +48,12 @@ struct Packet {
         }
     }
 
+    // New constructor accepting unsigned char* data
+    Packet(PacketType packet_type, const unsigned char* data_input, size_t data_len): mType(packet_type) {
+        mData.resize(DATA_SIZE, 0);
+        std::memcpy(mData.data(), data_input, std::min(DATA_SIZE - 1, data_len));
+    }
+
     // Constructor accepting buffer with size check
     Packet(const char* buffer, ssize_t size) {
         if (size != PACKET_SIZE) {
@@ -55,12 +61,6 @@ struct Packet {
         }
         mType = static_cast<PacketType>(*buffer);
         mData.insert(mData.end(), buffer + sizeof(PacketType), buffer + size);
-    }
-
-    // New constructor accepting unsigned char* data
-    Packet(PacketType packet_type, const unsigned char* data_input, size_t data_len): mType(packet_type) {
-        mData.resize(DATA_SIZE, 0);
-        std::memcpy(mData.data(), data_input, std::min(DATA_SIZE - 1, data_len));
     }
 
     std::vector<char> serialize() const {
