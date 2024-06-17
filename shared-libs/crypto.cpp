@@ -43,7 +43,6 @@ Crypto::Crypto(const std::string& caPath, const std::string& crlPath, const std:
     // verifico il mio stesso certificato
     if (verifyCertificate(ownCert)) {
         storeCertificate(ownCert);
-        std::cout << "> Certificati caricati con successo." << std::endl;
     } else {
         throw std::runtime_error("Unable to verify own certificate.");
     }
