@@ -98,7 +98,9 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
             switch (packet.mType) { // pacchetti inviati dal server
                 case PacketType::HELLO: {
                     // ho ricevuto i parametri g e p
-                    crypto->setDHParams(packet.getContent());
+                    std::string received = packet.getContent();
+                    std::cout<< received << std::endl;
+                    crypto->setDHParams(received);
                     crypto->printDHParameters();
                 }
                 break;

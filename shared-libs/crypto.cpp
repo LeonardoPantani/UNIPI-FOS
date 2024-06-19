@@ -154,14 +154,16 @@ void Crypto::setDHParams(const std::string& dhParamsStr) {
         throw std::runtime_error("Invalid DH parameters string format.");
     }
 
-    BIGNUM* p = NULL;
-    BIGNUM* g = NULL;
+    BIGNUM* p = BN_new();
+    BIGNUM* g = BN_new();
 
     if (!BN_hex2bn(&p, p_hex.c_str()) || !BN_hex2bn(&g, g_hex.c_str())) {
         if (p) BN_free(p);
         if (g) BN_free(g);
         throw std::runtime_error("Unable to convert hex to BIGNUM.");
     }
+
+    std::cout << "P:" << BN_bn2hex(p) << " | G: " << BN_bn2hex(g) << std::endl;
 
     DH* dh = DH_new();
     if (!dh || !DH_set0_pqg(dh, p, NULL, g)) {
@@ -170,6 +172,8 @@ void Crypto::setDHParams(const std::string& dhParamsStr) {
         if (g) BN_free(g);
         throw std::runtime_error("Unable to set DH parameters.");
     }
+
+    
 
     // Assegnare i parametri DH a mDHParams
     if (!EVP_PKEY_set1_DH(mDHParams, dh)) {

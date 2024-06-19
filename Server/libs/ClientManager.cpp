@@ -88,7 +88,9 @@ void handle_client(int client_socket) {
             switch (packet.mType) { // pacchetti inviati dal client
                 case PacketType::HELLO: {
                     // calcolo p e g
-                    Packet answerHelloPacket(PacketType::HELLO, crypto->prepareDHParams()); // invio p e g al client
+                    std::string toSend = crypto->prepareDHParams();
+                    std::cout << toSend << std::endl;
+                    Packet answerHelloPacket(PacketType::HELLO, toSend); // invio p e g al client
                     std::vector<char> serialized = answerHelloPacket.serialize();
                     if (write(client_socket, serialized.data(), serialized.size()) == -1) {
                         std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
