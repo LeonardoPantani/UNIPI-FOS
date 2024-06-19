@@ -1,5 +1,5 @@
 #include "../shared-libs/configmanager.hpp"
-#include "../shared-libs/crypto.hpp"
+#include "libs/CryptoServer.hpp"
 #include "libs/ClientManager.hpp"
 #include "libs/PersistentMemory.hpp"
 
@@ -37,7 +37,7 @@ const std::string dataFilePath = "persistentMemory.json"; // file memoria persis
 const std::string keyFilePath = "persistentMemory.key"; // file contenente la chiave per decriptare e criptare
 
 // lettura certificati
-Crypto* crypto = nullptr;
+CryptoServer* crypto = nullptr;
 
 // Codice principale
 int main() {
@@ -62,7 +62,7 @@ int main() {
         std::cout << "> Max numero client: " << maxClients << std::endl;
         std::cout << std::endl;
 
-        crypto = new Crypto("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server.pem");
+        crypto = new CryptoServer("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server.pem");
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         int opt = 1;

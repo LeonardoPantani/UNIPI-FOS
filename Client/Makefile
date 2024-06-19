@@ -3,8 +3,8 @@ CXXOLD = g++ -std=c++17 -O2 -pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wc
 
 all: main
 
-main: main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o ../shared-libs/crypto.o libs/ServerManager.o libs/AsyncInput.o
-	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o ../shared-libs/crypto.o libs/ServerManager.o libs/AsyncInput.o -lssl -lcrypto
+main: main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o libs/CryptoClient.o libs/ServerManager.o libs/AsyncInput.o
+	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o libs/CryptoClient.o libs/ServerManager.o libs/AsyncInput.o -lssl -lcrypto
 
 main.o: main.cpp
 	$(CXX) -c main.cpp -o main.o
@@ -16,8 +16,8 @@ main.o: main.cpp
 ../shared-libs/Utils.o: ../shared-libs/Utils.cpp
 	$(CXX) -c ../shared-libs/Utils.cpp -o ../shared-libs/Utils.o
 
-../shared-libs/crypto.o: ../shared-libs/crypto.cpp
-	$(CXX) -c ../shared-libs/crypto.cpp -o ../shared-libs/crypto.o
+libs/CryptoClient.o: libs/CryptoClient.cpp
+	$(CXX) -c libs/CryptoClient.cpp -o libs/CryptoClient.o
 
 libs/ServerManager.o: libs/ServerManager.cpp
 	$(CXX) -c libs/ServerManager.cpp -o libs/ServerManager.o

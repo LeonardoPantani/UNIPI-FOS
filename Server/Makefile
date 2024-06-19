@@ -3,8 +3,8 @@ CXXOLD = g++ -std=c++17 -O2 -pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wc
 
 all: main
 
-main: main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o ../shared-libs/crypto.o libs/ClientManager.o libs/PersistentMemory.o libs/UUID.o
-	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o ../shared-libs/crypto.o libs/ClientManager.o libs/PersistentMemory.o libs/UUID.o -lssl -lcrypto
+main: main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o libs/CryptoServer.o libs/ClientManager.o libs/PersistentMemory.o libs/UUID.o
+	$(CXX) -o main main.o ../shared-libs/configmanager.o ../shared-libs/Utils.o libs/CryptoServer.o libs/ClientManager.o libs/PersistentMemory.o libs/UUID.o -lssl -lcrypto
 
 main.o: main.cpp
 	$(CXX) -c main.cpp -o main.o
@@ -15,8 +15,8 @@ main.o: main.cpp
 ../shared-libs/Utils.o: ../shared-libs/Utils.cpp
 	$(CXX) -c ../shared-libs/Utils.cpp -o ../shared-libs/Utils.o
 
-../shared-libs/crypto.o: ../shared-libs/crypto.cpp
-	$(CXX) -c ../shared-libs/crypto.cpp -o ../shared-libs/crypto.o
+libs/CryptoServer.o: libs/CryptoServer.cpp
+	$(CXX) -c libs/CryptoServer.cpp -o libs/CryptoServer.o
 
 libs/ClientManager.o: libs/ClientManager.cpp
 	$(CXX) -c libs/ClientManager.cpp -o libs/ClientManager.o

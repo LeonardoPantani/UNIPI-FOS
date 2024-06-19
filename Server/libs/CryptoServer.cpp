@@ -1,6 +1,6 @@
-#include "crypto.hpp"
+#include "CryptoServer.hpp"
 
-Crypto::Crypto(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath) {
+CryptoServer::CryptoServer(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath) {
     // memorizzo CA
     FILE* file = fopen(caPath.c_str(), "r");
     if (!file) {
@@ -46,13 +46,17 @@ Crypto::Crypto(const std::string& caPath, const std::string& crlPath, const std:
     } else {
         throw std::runtime_error("Unable to verify own certificate.");
     }
+
+    
+    /* gestione parametri */
+    mDHParams = EVP_PKEY_new();
 }
 
-Crypto::~Crypto() {
+CryptoServer::~CryptoServer() {
     X509_STORE_free(mStore);
 }
 
-bool Crypto::storeCertificate(X509* toStore) {
+bool CryptoServer::storeCertificate(X509* toStore) {
     if (X509_STORE_add_cert(mStore, toStore) == -1) {
         return false; // impossibile aggiungere
     } else {
@@ -60,7 +64,7 @@ bool Crypto::storeCertificate(X509* toStore) {
     }
 }
 
-bool Crypto::verifyCertificate(X509* toValidate) {
+bool CryptoServer::verifyCertificate(X509* toValidate) {
     // Verifying a client certificate with a store
     X509_STORE_CTX* ctx = X509_STORE_CTX_new();
     X509_STORE_CTX_init(ctx, mStore, toValidate, NULL);
@@ -76,7 +80,7 @@ bool Crypto::verifyCertificate(X509* toValidate) {
 
 
 // DHKEP
-void Crypto::printDHParameters() {
+void CryptoServer::printDHParameters() {
     if (!mDHParams) {
         std::cerr << "I parametri DH non sono stati generati." << std::endl;
         return;
@@ -85,7 +89,34 @@ void Crypto::printDHParameters() {
     EVP_PKEY_print_params_fp(stdout, mDHParams, 0, NULL);
 }
 
-std::string Crypto::prepareDHParams() {
+void CryptoServer::printPubKey() {
+    // Creazione del contesto BIO per l'output in memoria
+    BIO* bio = BIO_new(BIO_s_mem());
+    if (!bio) {
+        std::cerr << "Errore nella creazione del BIO in memoria" << std::endl;
+        return;
+    }
+
+    // Scrittura della chiave pubblica in formato PEM nel BIO
+    if (PEM_write_bio_PUBKEY(bio, mPeerPublicKey) <= 0) {
+        std::cerr << "Errore nella scrittura della chiave pubblica in formato PEM" << std::endl;
+        BIO_free(bio);
+        return;
+    }
+
+    // Lettura del contenuto del BIO in una stringa
+    BUF_MEM* mem = nullptr;
+    BIO_get_mem_ptr(bio, &mem);
+    std::string pubKeyStr(mem->data, mem->length);
+
+    // Pulizia del BIO
+    BIO_free(bio);
+
+    // Stampa della chiave pubblica
+    std::cout << pubKeyStr << std::endl;
+}
+
+std::string CryptoServer::prepareDHParams() {
     // Creare un contesto per generare i parametri DH
     EVP_PKEY_CTX* paramgen_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DH, NULL);
     if (!paramgen_ctx) {
@@ -145,41 +176,65 @@ std::string Crypto::prepareDHParams() {
     return oss.str();
 }
 
-
-void Crypto::setDHParams(const std::string& dhParamsStr) {
-    std::istringstream iss(dhParamsStr);
-    std::string p_hex, g_hex;
-
-    if (!(iss >> p_hex >> g_hex)) {
-        throw std::runtime_error("Invalid DH parameters string format.");
+std::string CryptoServer::preparePublicKey() {
+    // Creazione del contesto per la generazione della chiave
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParams, NULL);
+    if (!ctx) {
+        throw std::runtime_error("Errore nella creazione del contesto EVP_PKEY_CTX");
     }
 
-    BIGNUM* p = BN_new();
-    BIGNUM* g = BN_new();
-
-    if (!BN_hex2bn(&p, p_hex.c_str()) || !BN_hex2bn(&g, g_hex.c_str())) {
-        if (p) BN_free(p);
-        if (g) BN_free(g);
-        throw std::runtime_error("Unable to convert hex to BIGNUM.");
+    // Inizializzazione della generazione della chiave
+    if (EVP_PKEY_keygen_init(ctx) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        throw std::runtime_error("Errore nell'inizializzazione della generazione della chiave");
     }
 
-    std::cout << "P:" << BN_bn2hex(p) << " | G: " << BN_bn2hex(g) << std::endl;
-
-    DH* dh = DH_new();
-    if (!dh || !DH_set0_pqg(dh, p, NULL, g)) {
-        if (dh) DH_free(dh);
-        if (p) BN_free(p);
-        if (g) BN_free(g);
-        throw std::runtime_error("Unable to set DH parameters.");
+    // Generazione della chiave privata
+    if (EVP_PKEY_keygen(ctx, &mMyPrivateKey) <= 0) {
+        EVP_PKEY_CTX_free(ctx);
+        throw std::runtime_error("Errore nella generazione della chiave privata");
     }
 
-    
+    // Pulizia del contesto
+    EVP_PKEY_CTX_free(ctx);
 
-    // Assegnare i parametri DH a mDHParams
-    if (!EVP_PKEY_set1_DH(mDHParams, dh)) {
-        DH_free(dh);
-        throw std::runtime_error("Unable to assign DH parameters to EVP_PKEY.");
+    // Creazione del contesto BIO per l'output in memoria
+    BIO* bio = BIO_new(BIO_s_mem());
+    if (!bio) {
+        throw std::runtime_error("Errore nella creazione del BIO in memoria");
     }
 
-    EVP_PKEY_print_params_fp(stdout, mDHParams, 0, NULL);
+    // Scrittura della chiave pubblica in formato PEM nel BIO
+    if (PEM_write_bio_PUBKEY(bio, mMyPrivateKey) <= 0) {
+        BIO_free(bio);
+        throw std::runtime_error("Errore nella scrittura della chiave pubblica in formato PEM");
+    }
+
+    // Lettura del contenuto del BIO in una stringa
+    BUF_MEM* mem = nullptr;
+    BIO_get_mem_ptr(bio, &mem);
+    std::string pubKeyStr(mem->data, mem->length);
+
+    // Pulizia del BIO
+    BIO_free(bio);
+
+    return pubKeyStr;
+}
+
+void CryptoServer::receivePublicKey(const std::string& peerPublicKey) {
+    // Creazione del contesto BIO in memoria per la chiave pubblica
+    BIO* bio = BIO_new_mem_buf(peerPublicKey.data(), static_cast<int>(peerPublicKey.size()));
+    if (!bio) {
+        throw std::runtime_error("Errore nella creazione del BIO in memoria");
+    }
+
+    // Lettura della chiave pubblica dal BIO
+    mPeerPublicKey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    if (!mPeerPublicKey) {
+        BIO_free(bio);
+        throw std::runtime_error("Errore nella lettura della chiave pubblica dal BIO");
+    }
+
+    // Pulizia del BIO
+    BIO_free(bio);
 }

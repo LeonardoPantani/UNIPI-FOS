@@ -1,6 +1,6 @@
 #include "libs/ServerManager.hpp"
 #include "../shared-libs/configmanager.hpp"
-#include "../shared-libs/crypto.hpp"
+#include "libs/CryptoClient.hpp"
 
 #include <iostream>
 #include <sys/socket.h>
@@ -30,7 +30,7 @@ void signalHandler(int s) {
 }
 
 // lettura certificati
-Crypto* crypto = nullptr;
+CryptoClient* crypto = nullptr;
 
 int main() {
     // gestione segnale interruzione
@@ -56,7 +56,7 @@ int main() {
         std::cout << std::endl;
 
         // lettura certificati
-        Crypto crypto("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "client.pem");
+        crypto = new CryptoClient("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "client.pem");
 
         int sock = 0;
         while (clientRunning) {

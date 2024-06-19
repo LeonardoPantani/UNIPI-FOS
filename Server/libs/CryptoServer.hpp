@@ -1,8 +1,8 @@
 #pragma once
-#ifndef CRYPTO_HPP
-#define CRYPTO_HPP
+#ifndef CRYPTOSERVER_HPP
+#define CRYPTOSERVER_HPP
 
-#include "json.hpp"
+#include "../../shared-libs/json.hpp"
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -14,22 +14,29 @@
 #include <stdexcept>
 #include <vector>
 
-class Crypto {
+class CryptoServer {
     private:
         X509_STORE* mStore;
-        EVP_PKEY* mDHParams = EVP_PKEY_new();
+
+        EVP_PKEY* mDHParams = nullptr;
+
+        EVP_PKEY* mMyPrivateKey = nullptr;
+        EVP_PKEY* mPeerPublicKey = nullptr;
 
     public:
-        Crypto(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath);
-        ~Crypto();
+        CryptoServer(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath);
+        ~CryptoServer();
 
         bool storeCertificate(X509* certificate);
         bool verifyCertificate(X509* toValidate);
 
         void printDHParameters();
+        void printPubKey();
 
         std::string prepareDHParams();
         void setDHParams(const std::string& dhParamsStr);
+        std::string preparePublicKey();
+        void receivePublicKey(const std::string& peerPublicKey);
 };
 
 #endif

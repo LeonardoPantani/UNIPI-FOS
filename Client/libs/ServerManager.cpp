@@ -2,8 +2,7 @@
 
 bool isVerificationCodeRequired = false;
 bool amIAuthenticated = false;
-
-extern Crypto* crypto;
+extern CryptoClient* crypto;
 
 // Funzione per ottenere il comando dal testo inserito
 Command getCommand(const std::string& command) {
@@ -98,10 +97,22 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
             switch (packet.mType) { // pacchetti inviati dal server
                 case PacketType::HELLO: {
                     // ho ricevuto i parametri g e p
-                    std::string received = packet.getContent();
-                    std::cout<< received << std::endl;
-                    crypto->setDHParams(received);
-                    crypto->printDHParameters();
+                    (*crypto).receiveDHParameters(packet.getContent());
+                    std::cout << "Parametri p e g dal server:" << std::endl;
+                    (*crypto).printDHParameters();
+
+                    // mando chiave pubblica al server
+                    std::string myPubKey = (*crypto).preparePublicKey();
+                    std::cout << "Mia chiave pubblica:\n" << myPubKey << std::endl;
+                    Packet handshakePacket(PacketType::HANDSHAKE, myPubKey);
+                    std::vector<char> serializedBye = handshakePacket.serialize();
+                    if (write(server_socket, serializedBye.data(), serializedBye.size()) == -1) {
+                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+                    }
+                }
+                break;
+                case PacketType::HANDSHAKE: {
+                    // ho ricevuto la chiave pubblica dal server
                 }
                 break;
                 case PacketType::SERVER_FULL: {
