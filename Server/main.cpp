@@ -62,7 +62,8 @@ int main() {
         std::cout << "> Max numero client: " << maxClients << std::endl;
         std::cout << std::endl;
 
-        crypto = new CryptoServer("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server.pem");
+        crypto = new CryptoServer("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server_cert.pem", "server_priv.pem");
+        crypto->printAllCertificates();
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         int opt = 1;

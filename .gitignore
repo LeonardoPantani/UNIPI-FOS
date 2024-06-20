@@ -49,8 +49,10 @@ persistentMemory.json
 persistentMemory.key
 
 # Custom: block certificates
-Server/server.pem
-Client/client.pem
+Server/server_cert.pem
+Server/server_priv.pem
+Client/client_cert.pem
+Client/client_priv.pem
 shared-certificates/ca.pem
 shared-certificates/crl.pem
 

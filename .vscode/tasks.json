@@ -39,6 +39,8 @@
                 "clean",
                 "--directory=${workspaceFolder}/Server;",
                 "make",
+                "-j",
+                "6",
                 "--directory=${workspaceFolder}/Server;"
             ],
             "group": {
@@ -59,6 +61,8 @@
                 "cleann",
                 "--directory=${workspaceFolder}/Server;",
                 "make",
+                "-j",
+                "6",
                 "--directory=${workspaceFolder}/Server;"
             ],
             "group": {
@@ -79,6 +83,8 @@
                 "clean",
                 "--directory=${workspaceFolder}/Client;",
                 "make",
+                "-j",
+                "6",
                 "--directory=${workspaceFolder}/Client;"
             ],
             "group": {
@@ -99,6 +105,8 @@
                 "cleann",
                 "--directory=${workspaceFolder}/Client;",
                 "make",
+                "-j",
+                "6",
                 "--directory=${workspaceFolder}/Client;"
             ],
             "group": {

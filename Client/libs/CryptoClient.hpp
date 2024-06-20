@@ -20,7 +20,8 @@ class CryptoClient {
 
         EVP_PKEY* mDHParams = nullptr;
 
-        EVP_PKEY* mMyPrivateKey = nullptr;
+        EVP_PKEY* mMySecret = nullptr; // a (esponente segreto)
+        EVP_PKEY* mMyPublicKey = nullptr; // g^a mod p
         EVP_PKEY* mPeerPublicKey = nullptr;
 
     public:

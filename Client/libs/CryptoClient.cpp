@@ -117,7 +117,6 @@ void CryptoClient::printPubKey() {
 }
 
 
-
 void CryptoClient::receiveDHParameters(const std::string& dhParamsStr) {
     std::istringstream iss(dhParamsStr);
     std::string p_hex, g_hex;
@@ -167,6 +166,7 @@ void CryptoClient::receiveDHParameters(const std::string& dhParamsStr) {
     }
 }
 
+// Genera g^a
 std::string CryptoClient::preparePublicKey() {
     // Creazione del contesto per la generazione della chiave
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParams, NULL);
@@ -180,8 +180,8 @@ std::string CryptoClient::preparePublicKey() {
         throw std::runtime_error("Errore nell'inizializzazione della generazione della chiave");
     }
 
-    // Generazione della chiave privata
-    if (EVP_PKEY_keygen(ctx, &mMyPrivateKey) <= 0) {
+    // Generazione di a (esponente segreto)
+    if (EVP_PKEY_keygen(ctx, &mMySecret) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         throw std::runtime_error("Errore nella generazione della chiave privata");
     }
@@ -195,8 +195,8 @@ std::string CryptoClient::preparePublicKey() {
         throw std::runtime_error("Errore nella creazione del BIO in memoria");
     }
 
-    // Scrittura della chiave pubblica in formato PEM nel BIO
-    if (PEM_write_bio_PUBKEY(bio, mMyPrivateKey) <= 0) {
+    // Dato mMySecret (a), scrive in bio g^a mod p
+    if (PEM_write_bio_PUBKEY(bio, mMySecret) <= 0) {
         BIO_free(bio);
         throw std::runtime_error("Errore nella scrittura della chiave pubblica in formato PEM");
     }
@@ -205,6 +205,9 @@ std::string CryptoClient::preparePublicKey() {
     BUF_MEM* mem = nullptr;
     BIO_get_mem_ptr(bio, &mem);
     std::string pubKeyStr(mem->data, mem->length);
+    
+    // Memorizza la chiave pubblica in formato EVP_PKEY*
+    mMyPublicKey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
 
     // Pulizia del BIO
     BIO_free(bio);

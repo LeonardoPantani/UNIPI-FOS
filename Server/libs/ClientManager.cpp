@@ -101,15 +101,17 @@ void handle_client(int client_socket) {
                 break;
                 case PacketType::HANDSHAKE: {
                     // ricevuta chiave pubblica dal client
-                    (*crypto).receivePublicKey(packet.getContent());
+                    (*crypto).receivePublicKey(client_socket, packet.getContent());
                     std::cout << "Chiave pubblica dal client:\n";
-                    (*crypto).printPubKey();
+                    (*crypto).printPubKey(client_socket);
 
                     // mando chiave pubblica, certificato, firma al client
                     std::string myPubKey = (*crypto).preparePublicKey();
+                    std::string myCert = (*crypto).prepareCertificate();
+                    (*crypto).derivateK(client_socket);
                     std::cout << "Mia chiave pubblica:\n" << myPubKey << std::endl;
+                    std::cout << "Mio certificato:\n" << myCert << std::endl;
                     // TODO preparare anche certificato e firma e spedire
-                    
                 }
                 break;
                 case PacketType::BYE: {
