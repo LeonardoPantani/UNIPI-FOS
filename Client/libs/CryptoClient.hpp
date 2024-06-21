@@ -3,6 +3,8 @@
 #define CRYPTOCLIENT_HPP
 
 #include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Utils.hpp"
+
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -17,26 +19,37 @@
 class CryptoClient {
     private:
         X509_STORE* mStore;
+        ASN1_INTEGER* mOwnCertSN;
 
         EVP_PKEY* mDHParams = nullptr;
 
         EVP_PKEY* mMySecret = nullptr; // a (esponente segreto)
         EVP_PKEY* mMyPublicKey = nullptr; // g^a mod p
         EVP_PKEY* mPeerPublicKey = nullptr;
+        std::string mPeerK;
+
+        std::string mOwnPrivateKeyPath;
 
     public:
-        CryptoClient(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath);
+        CryptoClient(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath, const std::string& ownPrivateKeyPath);
         ~CryptoClient();
 
         bool storeCertificate(X509* certificate);
         bool verifyCertificate(X509* toValidate);
 
+        std::string prepareCertificate();
         void printDHParameters();
+        std::string keyToString(EVP_PKEY* toConvert);
         void printPubKey();
+
+        std::string signWithPrivKey();
+        std::vector<char> encryptSignatureWithK(std::string signedPair);
+        std::string prepareSignedPair();
 
         void receiveDHParameters(const std::string& dhParamsStr);
         std::string preparePublicKey();
         void receivePublicKey(const std::string& peerPublicKey);
+        void derivateK();
 };
 
 #endif

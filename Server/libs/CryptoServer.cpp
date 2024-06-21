@@ -31,6 +31,9 @@ CryptoServer::CryptoServer(const std::string& caPath, const std::string& crlPath
         X509_STORE_add_crl(mStore, crl);
         X509_STORE_set_flags(mStore, X509_V_FLAG_CRL_CHECK);
 
+        X509_free(caCert);
+        X509_CRL_free(crl);
+
         // leggo certificato da file
         file = fopen(ownCertificatePath.c_str(), "r");
         if (!file) {
@@ -60,15 +63,17 @@ CryptoServer::CryptoServer(const std::string& caPath, const std::string& crlPath
         
         /* gestione parametri */
         mDHParams = EVP_PKEY_new();
+
+        X509_free(ownCert);
     } catch(std::runtime_error const&) {
         fclose(file);
         throw;
     }
-    fclose(file);
 }
 
 CryptoServer::~CryptoServer() {
     X509_STORE_free(mStore);
+    EVP_PKEY_free(mDHParams);
 }
 
 void CryptoServer::printCertificate(X509* cert) {
@@ -194,14 +199,49 @@ std::string CryptoServer::signWithPrivKey(int client_socket) {
     return toRet;
 }
 
-std::string CryptoServer::encryptWithK(int client_socket, std::string signedPair) {
-    // TODO Criptare signedPair con k del client_socket
+std::vector<char> CryptoServer::encryptSignatureWithK(int client_socket, std::string signedPair) {
+    EVP_CIPHER_CTX* ctx;
+    const unsigned char* key = reinterpret_cast<const unsigned char*>(mPeersK[client_socket].data());
+    const unsigned char* msg = reinterpret_cast<const unsigned char*>(signedPair.data());
 
-    return "";
+    std::vector<unsigned char> ciphertext(signedPair.size() + EVP_MAX_BLOCK_LENGTH);
+    int cipherlen;
+    int outlen;
+
+    /* Context allocation */
+    ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        throw std::runtime_error("Failed to create EVP_CIPHER_CTX");
+    }
+
+    /* Encryption (initialization + single update + finalization) */
+    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, key, nullptr)) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("EVP_EncryptInit_ex failed");
+    }
+    if (1 != EVP_EncryptUpdate(ctx, ciphertext.data(), &outlen, msg, signedPair.size())) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("EVP_EncryptUpdate failed");
+    }
+    cipherlen = outlen;
+    if (1 != EVP_EncryptFinal_ex(ctx, ciphertext.data() + cipherlen, &outlen)) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("EVP_EncryptFinal_ex failed");
+    }
+    cipherlen += outlen;
+
+    /* Context deallocation */
+    EVP_CIPHER_CTX_free(ctx);
+
+    std::vector<char> encrypted(cipherlen);
+    std::copy(ciphertext.begin(), ciphertext.begin() + cipherlen, encrypted.begin());
+    
+    return encrypted;
 }
-// chiamata dal server, fornisce {<g^b, g^a>b}k
+
+// chiamata dal server, fornisce {<g^b, g^a>B}k
 std::string CryptoServer::prepareSignedPair(int client_socket) {
-    return encryptWithK(client_socket, signWithPrivKey(client_socket));
+    return base64_encode(encryptSignatureWithK(client_socket, signWithPrivKey(client_socket)));
 }
 
 // DHKEP
@@ -368,6 +408,8 @@ void CryptoServer::derivateK(int client_socket) {
     std::string secret_str(secret.begin(), secret.end());
 
     mPeersK.insert({client_socket, secret_str});
+
+    EVP_PKEY_free(mMySecret); // delete esponente segreto b
 }
 
 void CryptoServer::receivePublicKey(int client_socket, const std::string& peerPublicKey) {

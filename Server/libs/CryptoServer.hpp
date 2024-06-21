@@ -3,6 +3,7 @@
 #define CRYPTOSERVER_HPP
 
 #include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Utils.hpp"
 
 #include <openssl/bn.h>
 #include <openssl/evp.h>
@@ -45,7 +46,7 @@ class CryptoServer {
 
         std::string signWithPrivKey(int client_socket);
         std::string prepareSignedPair(int client_socket);
-        std::string encryptWithK(int client_socket, std::string signedPair);
+        std::vector<char> encryptSignatureWithK(int client_socket, std::string signedPair);
 
         std::string prepareDHParams();
         void setDHParams(const std::string& dhParamsStr);

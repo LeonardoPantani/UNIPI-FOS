@@ -63,7 +63,6 @@ int main() {
         std::cout << std::endl;
 
         crypto = new CryptoServer("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server_cert.pem", "server_priv.pem");
-        crypto->printAllCertificates();
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         int opt = 1;
@@ -129,6 +128,7 @@ int main() {
         }
 
         delete memory;
+        delete crypto;
         close(server_socket);
     } catch (const std::exception& e) {
         std::cerr << "[!] " << e.what() << std::endl;

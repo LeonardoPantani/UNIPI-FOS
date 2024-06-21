@@ -56,7 +56,7 @@ int main() {
         std::cout << std::endl;
 
         // lettura certificati
-        crypto = new CryptoClient("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "client.pem");
+        crypto = new CryptoClient("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "client_cert.pem", "client_priv.pem");
 
         int sock = 0;
         while (clientRunning) {

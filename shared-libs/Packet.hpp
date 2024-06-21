@@ -12,6 +12,7 @@
 enum PacketType {
     HELLO,             /* sent by server (request) and client (answer): first communication */
     HANDSHAKE,
+    HANDSHAKE_FINAL,
     BYE,               /* sent by client: on connection closing */
     SERVER_FULL,       /* sent by server: when it is full */
     SERVER_CLOSING,    /* sent by server: when is getting terminated */
@@ -85,6 +86,7 @@ struct Packet {
         switch (mType) {
             case PacketType::HELLO: return "HELLO";
             case PacketType::HANDSHAKE: return "HANDSHAKE";
+            case PacketType::HANDSHAKE_FINAL: return "HANDSHAKE_FINAL";
             case PacketType::BYE: return "BYE";
             case PacketType::SERVER_FULL: return "SERVER_FULL";
             case PacketType::SERVER_CLOSING: return "SERVER_CLOSING";

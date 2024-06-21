@@ -98,12 +98,9 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
                 case PacketType::HELLO: {
                     // ho ricevuto i parametri g e p
                     (*crypto).receiveDHParameters(packet.getContent());
-                    std::cout << "Parametri p e g dal server:" << std::endl;
-                    (*crypto).printDHParameters();
 
                     // mando chiave pubblica al server
                     std::string myPubKey = (*crypto).preparePublicKey();
-                    std::cout << "Mia chiave pubblica:\n" << myPubKey << std::endl;
                     Packet handshakePacket(PacketType::HANDSHAKE, myPubKey);
                     std::vector<char> serializedBye = handshakePacket.serialize();
                     if (write(server_socket, serializedBye.data(), serializedBye.size()) == -1) {
@@ -112,7 +109,31 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
                 }
                 break;
                 case PacketType::HANDSHAKE: {
-                    // ho ricevuto la chiave pubblica dal server
+                    // ho ricevuto M2 dal server
+                    nlohmann::json jsonData = nlohmann::json::parse(packet.getContent());
+                    std::string serverPublicKey = jsonData["publicKey"];
+                    std::string serverCertificate = jsonData["certificate"];
+                    std::string serverSignedEncryptedPair = jsonData["signedEncryptedPair"];
+
+                    (*crypto).receivePublicKey(serverPublicKey);
+                    std::string myCert = (*crypto).prepareCertificate();
+                    // mando chiave pubblica, certificato, firma al server
+                    (*crypto).derivateK();
+                    std::string mySignature = (*crypto).prepareSignedPair();
+                    
+                    nlohmann::json m3;
+                    m3["signedEncryptedPair"] = mySignature;
+                    m3["certificate"] = myCert;
+
+                    Packet handshakeFinalPacket(PacketType::HANDSHAKE_FINAL, m3.dump());
+                    std::vector<char> serializedBye = handshakeFinalPacket.serialize();
+                    if (write(server_socket, serializedBye.data(), serializedBye.size()) == -1) {
+                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+                    }
+                }
+                break;
+                case PacketType::HANDSHAKE_FINAL: {
+                    
                 }
                 break;
                 case PacketType::SERVER_FULL: {

@@ -89,8 +89,6 @@ void handle_client(int client_socket) {
                 case PacketType::HELLO: {
                     // calcolo p e g
                     std::string toSend = (*crypto).prepareDHParams();
-                    std::cout << "Miei parametri p e g:" << std::endl;
-                    (*crypto).printDHParameters();
 
                     Packet answerHelloPacket(PacketType::HELLO, toSend); // invio p e g al client
                     std::vector<char> serialized = answerHelloPacket.serialize();
@@ -102,16 +100,36 @@ void handle_client(int client_socket) {
                 case PacketType::HANDSHAKE: {
                     // ricevuta chiave pubblica dal client
                     (*crypto).receivePublicKey(client_socket, packet.getContent());
-                    std::cout << "Chiave pubblica dal client:\n";
-                    (*crypto).printPubKey(client_socket);
 
-                    // mando chiave pubblica, certificato, firma al client
                     std::string myPubKey = (*crypto).preparePublicKey();
                     std::string myCert = (*crypto).prepareCertificate();
+                    // mando chiave pubblica, certificato, firma al client
                     (*crypto).derivateK(client_socket);
-                    std::cout << "Mia chiave pubblica:\n" << myPubKey << std::endl;
-                    std::cout << "Mio certificato:\n" << myCert << std::endl;
-                    // TODO preparare anche certificato e firma e spedire
+                    std::string mySignature = (*crypto).prepareSignedPair(client_socket);
+
+                    // Creazione di un oggetto JSON con i dati
+                    nlohmann::json jsonData;
+                    jsonData["publicKey"] = myPubKey;
+                    jsonData["certificate"] = myCert;
+                    jsonData["signedEncryptedPair"] = mySignature;
+
+                    Packet answerHandshakePacket(PacketType::HANDSHAKE, jsonData.dump());
+                    std::vector<char> serialized = answerHandshakePacket.serialize();
+                    if (write(client_socket, serialized.data(), serialized.size()) == -1) {
+                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+                    }
+                }
+                break;
+                case PacketType::HANDSHAKE_FINAL: {
+                    nlohmann::json m3 = nlohmann::json::parse(packet.getContent());
+                    std::string clientCertificate = m3["certificate"];
+                    std::string clientSignedEncryptedPair = m3["signedEncryptedPair"];
+
+                    Packet answerHandshakeFinalPacket(PacketType::HANDSHAKE_FINAL);
+                    std::vector<char> serialized = answerHandshakeFinalPacket.serialize();
+                    if (write(client_socket, serialized.data(), serialized.size()) == -1) {
+                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+                    }
                 }
                 break;
                 case PacketType::BYE: {
