@@ -96,6 +96,8 @@ int main() {
             userInputThread.join();
         }
 
+        delete crypto;
+
         close(sock);
     } catch (const std::exception& e) {
         std::cerr << "[!] " << e.what() << std::endl;

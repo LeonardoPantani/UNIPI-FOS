@@ -115,12 +115,14 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
                     std::string serverCertificate = jsonData["certificate"];
                     std::string serverSignedEncryptedPair = jsonData["signedEncryptedPair"];
 
-                    (*crypto).receivePublicKey(serverPublicKey);
-                    std::string myCert = (*crypto).prepareCertificate();
-                    // mando chiave pubblica, certificato, firma al server
+                    (*crypto).receivePublicKey(serverPublicKey); // g^b
                     (*crypto).derivateK();
+
+                    // controllo pacchetto del server
+                    (*crypto).varCheck(serverCertificate, base64_decode(serverSignedEncryptedPair));
+
                     std::string mySignature = (*crypto).prepareSignedPair();
-                    
+                    std::string myCert = (*crypto).prepareCertificate();
                     nlohmann::json m3;
                     m3["signedEncryptedPair"] = mySignature;
                     m3["certificate"] = myCert;

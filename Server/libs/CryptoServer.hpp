@@ -47,12 +47,17 @@ class CryptoServer {
         std::string signWithPrivKey(int client_socket);
         std::string prepareSignedPair(int client_socket);
         std::vector<char> encryptSignatureWithK(int client_socket, std::string signedPair);
+        std::vector<char> decryptSignatureWithK(int client_socket, std::vector<char> signedEncryptedPair);
 
         std::string prepareDHParams();
         void setDHParams(const std::string& dhParamsStr);
         std::string preparePublicKey();
         void receivePublicKey(int client_socket, const std::string& peerPublicKey);
         void derivateK(int client_socket);
+        
+        EVP_PKEY* extractPubKeyFromCert(std::string serverCertificate);
+        void verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
+        void varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair);
 };
 
 #endif

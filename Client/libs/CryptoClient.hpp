@@ -25,7 +25,7 @@ class CryptoClient {
 
         EVP_PKEY* mMySecret = nullptr; // a (esponente segreto)
         EVP_PKEY* mMyPublicKey = nullptr; // g^a mod p
-        EVP_PKEY* mPeerPublicKey = nullptr;
+        EVP_PKEY* mPeerPublicKey = nullptr; // g^b mod p
         std::string mPeerK;
 
         std::string mOwnPrivateKeyPath;
@@ -43,6 +43,7 @@ class CryptoClient {
         void printPubKey();
 
         std::string signWithPrivKey();
+        std::vector<char> decryptSignatureWithK(std::vector<char> signedEncryptedPair);
         std::vector<char> encryptSignatureWithK(std::string signedPair);
         std::string prepareSignedPair();
 
@@ -50,6 +51,10 @@ class CryptoClient {
         std::string preparePublicKey();
         void receivePublicKey(const std::string& peerPublicKey);
         void derivateK();
+
+        EVP_PKEY* extractPubKeyFromCert(std::string serverCertificate);
+        void verifySignature(std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
+        void varCheck(std::string serverCertificate, std::vector<char> serverSignedEncryptedPair);
 };
 
 #endif

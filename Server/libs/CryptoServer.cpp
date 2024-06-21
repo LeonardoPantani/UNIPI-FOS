@@ -74,6 +74,14 @@ CryptoServer::CryptoServer(const std::string& caPath, const std::string& crlPath
 CryptoServer::~CryptoServer() {
     X509_STORE_free(mStore);
     EVP_PKEY_free(mDHParams);
+    EVP_PKEY_free(mMyPublicKey);
+
+    for (auto it = mPeersPublicKeys.begin(); it != mPeersPublicKeys.end(); ++it) {
+        EVP_PKEY_free(it->second);          // Libera la memoria allocata per EVP_PKEY
+    }
+
+    // Dopo aver liberato tutti gli elementi, svuota la mappa
+    mPeersPublicKeys.clear();
 }
 
 void CryptoServer::printCertificate(X509* cert) {
@@ -183,6 +191,7 @@ std::string CryptoServer::signWithPrivKey(int client_socket) {
     fclose(fp);
     
     if (!privKey) {
+        EVP_PKEY_free(privKey);
         throw std::runtime_error("Invalid private key file provided at path " + mOwnPrivateKeyPath + ".");
     }
 
@@ -193,9 +202,11 @@ std::string CryptoServer::signWithPrivKey(int client_socket) {
     EVP_SignInit(ctx, EVP_sha256());
     EVP_SignUpdate(ctx, pair.c_str(), pair.length());
     EVP_SignFinal(ctx, signature, &signature_len, privKey);
+    EVP_PKEY_free(privKey);
     EVP_MD_CTX_free(ctx);
 
     std::string toRet(reinterpret_cast<char*>(signature), signature_len);
+    free(signature);
     return toRet;
 }
 
@@ -239,9 +250,128 @@ std::vector<char> CryptoServer::encryptSignatureWithK(int client_socket, std::st
     return encrypted;
 }
 
+std::vector<char> CryptoServer::decryptSignatureWithK(int client_socket, std::vector<char> signedEncryptedPair) {
+    EVP_CIPHER_CTX* ctx;
+    const unsigned char* key = reinterpret_cast<const unsigned char*>(mPeersK[client_socket].data());
+    const unsigned char* ciphertext = reinterpret_cast<const unsigned char*>(signedEncryptedPair.data());
+    int cipherlen = signedEncryptedPair.size();
+    
+    std::vector<unsigned char> plaintext(cipherlen);
+    int plainlen;
+    int outlen;
+
+    /* Context allocation */
+    ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        throw std::runtime_error("Failed to create EVP_CIPHER_CTX");
+    }
+
+    /* Decryption (initialization + single update + finalization) */
+    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, key, nullptr)) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("EVP_DecryptInit_ex failed");
+    }
+    if (1 != EVP_DecryptUpdate(ctx, plaintext.data(), &outlen, ciphertext, cipherlen)) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("EVP_DecryptUpdate failed");
+    }
+    plainlen = outlen;
+    if (1 != EVP_DecryptFinal_ex(ctx, plaintext.data() + plainlen, &outlen)) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("EVP_DecryptFinal_ex failed");
+    }
+    plainlen += outlen;
+
+    /* Context deallocation */
+    EVP_CIPHER_CTX_free(ctx);
+
+    std::vector<char> decrypted(plainlen);
+    std::copy(plaintext.begin(), plaintext.begin() + plainlen, decrypted.begin());
+    
+    return decrypted;
+}
+
 // chiamata dal server, fornisce {<g^b, g^a>B}k
 std::string CryptoServer::prepareSignedPair(int client_socket) {
     return base64_encode(encryptSignatureWithK(client_socket, signWithPrivKey(client_socket)));
+}
+
+EVP_PKEY* CryptoServer::extractPubKeyFromCert(std::string clientCertificate) {
+    // Creare un buffer di memoria dalla stringa del certificato
+    BIO* bio = BIO_new_mem_buf(clientCertificate.data(), clientCertificate.size());
+    if (!bio) {
+        throw std::runtime_error("Impossibile creare buffer di memoria.");
+    }
+
+    // Leggere il certificato X509 dal buffer
+    X509* cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+    BIO_free(bio); // Rilasciare il buffer
+    if (!cert) {
+        throw std::runtime_error("Il certificato è illeggibile.");
+    }
+
+    // Estrarre la chiave pubblica dal certificato X509
+    EVP_PKEY* pubKey = X509_get_pubkey(cert);
+    X509_free(cert); // Rilasciare il certificato
+    if (!pubKey) {
+        throw std::runtime_error("Impossibile estrarre la chiave pubblica.");
+    }
+
+    // Restituire la chiave pubblica
+    return pubKey;
+}
+
+void CryptoServer::verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey) {
+    // Ricostruire coppia: g^b g^a
+    std::string reconstructedPair = keyToString(mMyPublicKey) + " " + keyToString(mPeersPublicKeys[client_socket]);
+
+    // Estrai i dati dal pair ricostruito
+    const unsigned char* msg = reinterpret_cast<const unsigned char*>(reconstructedPair.c_str());
+    int msg_len = static_cast<int>(reconstructedPair.size());
+
+    // Estrai i dati dalla firma
+    const unsigned char* signature = reinterpret_cast<const unsigned char*>(signedPair.data());
+    int signature_len = static_cast<int>(signedPair.size());
+
+    // Inizializza il contesto per la verifica
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (!ctx) {
+        throw std::runtime_error("Inizializzazione contesto fallita.");
+    }
+
+    // Inizializza la verifica con SHA-256
+    if (EVP_VerifyInit(ctx, EVP_sha256()) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Inizializzazione verifica firma fallita.");
+    }
+
+    // Aggiungi il messaggio alla verifica
+    if (EVP_VerifyUpdate(ctx, msg, msg_len) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("Aggiornamento verifica firma fallito.");
+    }
+
+    // Esegui la verifica finale
+    int ret = EVP_VerifyFinal(ctx, signature, signature_len, serverCertificatePublicKey);
+    EVP_MD_CTX_free(ctx);
+
+    // Verifica il risultato
+    if (ret != 1) {
+        throw std::runtime_error("La firma non è valida.");
+    }
+}
+
+void CryptoServer::varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair) {
+    std::vector<char> signedPair = decryptSignatureWithK(client_socket, clientSignedEncryptedPair);
+    EVP_PKEY* certPubKey = extractPubKeyFromCert(serverCertificate);
+    
+    try {
+        verifySignature(client_socket, signedPair, certPubKey);
+        EVP_PKEY_free(certPubKey);
+    } catch(std::exception const&e) {
+        EVP_PKEY_free(certPubKey);
+        throw std::runtime_error(std::string("Errore varCheck: ") + e.what());
+    }
 }
 
 // DHKEP
