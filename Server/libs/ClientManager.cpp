@@ -123,7 +123,7 @@ void handle_client(int client_socket) {
                     // ricevuta chiave pubblica dal client
                     (*crypto).receivePublicKey(client_socket, packet.getContent());
 
-                    std::string myPubKey = (*crypto).preparePublicKey();
+                    std::string myPubKey = (*crypto).preparePublicKey(client_socket);
                     std::string myCert = (*crypto).prepareCertificate();
                     // mando chiave pubblica, certificato, firma al client
                     (*crypto).derivateK(client_socket);
@@ -162,8 +162,6 @@ void handle_client(int client_socket) {
                     if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
                     std::cout << "> Il client " << client_socket << " si è disconnesso." << std::endl;
                     clientQuit = true;
-                    removeHandshakeDone(client_socket); // client disconnesso
-                    if(currentUser != nullptr) removeAuthUser(currentUser->getNickname());
                     break;
                 }
                 break;
@@ -545,4 +543,9 @@ void handle_client(int client_socket) {
         std::cerr << "[!] Errore: " << e.what() << std::endl;
     }
     close(client_socket);
+
+    removeHandshakeDone(client_socket); // client disconnesso
+    if(currentUser != nullptr) removeAuthUser(currentUser->getNickname()); // utente non più nella lista degli autenticati, se lo era
+    // pulizia mappe
+    (*crypto).removeClientSocket(client_socket);
 }

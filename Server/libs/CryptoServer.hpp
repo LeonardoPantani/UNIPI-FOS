@@ -21,8 +21,9 @@ class CryptoServer {
         X509_STORE* mStore;
         ASN1_INTEGER* mOwnCertSN;
         EVP_PKEY* mDHParams = nullptr; // p, g
-        EVP_PKEY* mMyPublicKey = nullptr; // g^b
-        EVP_PKEY* mMySecret = nullptr; // b (esponente segreto)
+
+        std::map<int, EVP_PKEY*> mMyPublicKey; // g^b
+        std::map<int, EVP_PKEY*> mMySecret; // b (esponente segreto)
 
         std::map<int, EVP_PKEY*> mPeersPublicKeys;
         std::map<int, std::string> mPeersK;
@@ -32,6 +33,8 @@ class CryptoServer {
     public:
         CryptoServer(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath, const std::string& ownPrivateKeyPath);
         ~CryptoServer();
+
+        void removeClientSocket(int client_socket);
 
         void printCertificate(X509* cert);
         bool storeCertificate(X509* certificate);
@@ -51,7 +54,7 @@ class CryptoServer {
 
         std::string prepareDHParams();
         void setDHParams(const std::string& dhParamsStr);
-        std::string preparePublicKey();
+        std::string preparePublicKey(int client_socket);
         void receivePublicKey(int client_socket, const std::string& peerPublicKey);
         void derivateK(int client_socket);
         

@@ -74,14 +74,34 @@ CryptoServer::CryptoServer(const std::string& caPath, const std::string& crlPath
 CryptoServer::~CryptoServer() {
     X509_STORE_free(mStore);
     EVP_PKEY_free(mDHParams);
-    EVP_PKEY_free(mMyPublicKey);
 
-    for (auto it = mPeersPublicKeys.begin(); it != mPeersPublicKeys.end(); ++it) {
-        EVP_PKEY_free(it->second);          // Libera la memoria allocata per EVP_PKEY
+    // pulisco tutte le chiavi pubbliche che ho generato coi client
+    for (auto it = mMyPublicKey.begin(); it != mMyPublicKey.end(); ++it) {
+        EVP_PKEY_free(it->second);
     }
+    mMyPublicKey.clear();
 
-    // Dopo aver liberato tutti gli elementi, svuota la mappa
+    // pulisco tutti i secret, non vanno liberati singolarmente perché già lo fa derivateK
+    mMySecret.clear();
+
+    // pulisco chiavi pubbliche dei client
+    for (auto it = mPeersPublicKeys.begin(); it != mPeersPublicKeys.end(); ++it) {
+        EVP_PKEY_free(it->second); 
+    }
     mPeersPublicKeys.clear();
+
+    // pulisco mPeersK
+    mPeersK.clear();
+}
+
+void CryptoServer::removeClientSocket(int client_socket) {
+    EVP_PKEY_free(mMyPublicKey[client_socket]);
+    mMyPublicKey.erase(client_socket);
+    // EVP_PKEY_free della mMySecret non necessaria perché già fatta in derivateK
+    mMySecret.erase(client_socket);
+    EVP_PKEY_free(mPeersPublicKeys[client_socket]);
+    mPeersPublicKeys.erase(client_socket);
+    mPeersK.erase(client_socket);
 }
 
 void CryptoServer::printCertificate(X509* cert) {
@@ -175,11 +195,9 @@ std::string CryptoServer::prepareCertificate() {
 }
 
 
-
-
 // funzione intermedia privat: firma la coppia <g^b, g^a>
 std::string CryptoServer::signWithPrivKey(int client_socket) {
-    std::string pair = keyToString(mMyPublicKey) + " " + keyToString(mPeersPublicKeys[client_socket]);
+    std::string pair = keyToString(mMyPublicKey[client_socket]) + " " + keyToString(mPeersPublicKeys[client_socket]);
 
     // carico da file la chiave privata (esponente b)
     FILE* fp = fopen(mOwnPrivateKeyPath.c_str(), "r");
@@ -323,7 +341,7 @@ EVP_PKEY* CryptoServer::extractPubKeyFromCert(std::string clientCertificate) {
 
 void CryptoServer::verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey) {
     // Ricostruire coppia: g^b g^a
-    std::string reconstructedPair = keyToString(mMyPublicKey) + " " + keyToString(mPeersPublicKeys[client_socket]);
+    std::string reconstructedPair = keyToString(mMyPublicKey[client_socket]) + " " + keyToString(mPeersPublicKeys[client_socket]);
 
     // Estrai i dati dal pair ricostruito
     const unsigned char* msg = reinterpret_cast<const unsigned char*>(reconstructedPair.c_str());
@@ -474,7 +492,7 @@ std::string CryptoServer::prepareDHParams() {
 }
 
 // Genera g^b
-std::string CryptoServer::preparePublicKey() { // TODO mettere mMySecret come map perché altrimenti con più client crasha perché prova a sovrascrivere su un valore liberato alla riga 542
+std::string CryptoServer::preparePublicKey(int client_socket) {
     // Creazione del contesto per la generazione della chiave
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParams, NULL);
     if (!ctx) {
@@ -487,8 +505,8 @@ std::string CryptoServer::preparePublicKey() { // TODO mettere mMySecret come ma
         throw std::runtime_error("Errore nell'inizializzazione della generazione della chiave");
     }
 
-    // Dato mMySecret (b), scrive in bio g^b mod p
-    if (EVP_PKEY_keygen(ctx, &mMySecret) <= 0) {
+    // Genero esponente segreto b
+    if (EVP_PKEY_keygen(ctx, &mMySecret[client_socket]) <= 0) {
         EVP_PKEY_CTX_free(ctx);
         throw std::runtime_error("Errore nella generazione della chiave privata");
     }
@@ -503,7 +521,7 @@ std::string CryptoServer::preparePublicKey() { // TODO mettere mMySecret come ma
     }
 
     // Scrittura della chiave pubblica in formato PEM nel BIO
-    if (PEM_write_bio_PUBKEY(bio, mMySecret) <= 0) {
+    if (PEM_write_bio_PUBKEY(bio, mMySecret[client_socket]) <= 0) {
         BIO_free(bio);
         throw std::runtime_error("Errore nella scrittura della chiave pubblica in formato PEM");
     }
@@ -514,7 +532,7 @@ std::string CryptoServer::preparePublicKey() { // TODO mettere mMySecret come ma
     std::string pubKeyStr(mem->data, mem->length);
 
     // Memorizza la chiave pubblica in formato EVP_PKEY*
-    mMyPublicKey = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
+    mMyPublicKey[client_socket] = PEM_read_bio_PUBKEY(bio, NULL, NULL, NULL);
 
     // Pulizia del BIO
     BIO_free(bio);
@@ -523,7 +541,7 @@ std::string CryptoServer::preparePublicKey() { // TODO mettere mMySecret come ma
 }
 
 void CryptoServer::derivateK(int client_socket) {
-    EVP_PKEY_CTX* ctx_drv = EVP_PKEY_CTX_new(mMySecret, NULL);
+    EVP_PKEY_CTX* ctx_drv = EVP_PKEY_CTX_new(mMySecret[client_socket], NULL);
     EVP_PKEY_derive_init(ctx_drv);
     EVP_PKEY_derive_set_peer(ctx_drv, mPeersPublicKeys[client_socket]);
 
@@ -539,7 +557,7 @@ void CryptoServer::derivateK(int client_socket) {
 
     mPeersK.insert({client_socket, secret_str});
 
-    //EVP_PKEY_free(mMySecret); // delete esponente segreto b TODO se si rimuove questo non va in segmentation fault
+    EVP_PKEY_free(mMySecret[client_socket]); // delete esponente segreto b
 }
 
 void CryptoServer::receivePublicKey(int client_socket, const std::string& peerPublicKey) {
