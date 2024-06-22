@@ -474,7 +474,7 @@ std::string CryptoServer::prepareDHParams() {
 }
 
 // Genera g^b
-std::string CryptoServer::preparePublicKey() {
+std::string CryptoServer::preparePublicKey() { // TODO mettere mMySecret come map perché altrimenti con più client crasha perché prova a sovrascrivere su un valore liberato alla riga 542
     // Creazione del contesto per la generazione della chiave
     EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParams, NULL);
     if (!ctx) {
@@ -539,7 +539,7 @@ void CryptoServer::derivateK(int client_socket) {
 
     mPeersK.insert({client_socket, secret_str});
 
-    EVP_PKEY_free(mMySecret); // delete esponente segreto b
+    //EVP_PKEY_free(mMySecret); // delete esponente segreto b TODO se si rimuove questo non va in segmentation fault
 }
 
 void CryptoServer::receivePublicKey(int client_socket, const std::string& peerPublicKey) {

@@ -74,6 +74,7 @@ CryptoClient::~CryptoClient() {
     X509_STORE_free(mStore);
     EVP_PKEY_free(mDHParams);
     EVP_PKEY_free(mMyPublicKey);
+    //EVP_PKEY_free(mMySecret); // TODO per qualche ragione blocca il thread dell'input handler?
 }
 
 bool CryptoClient::storeCertificate(X509* toStore) {
@@ -151,6 +152,7 @@ std::string CryptoClient::signWithPrivKey() {
     fclose(fp);
     
     if (!privKey) {
+        EVP_PKEY_free(privKey);
         throw std::runtime_error("Invalid private key file provided at path " + mOwnPrivateKeyPath + ".");
     }
 
@@ -162,6 +164,7 @@ std::string CryptoClient::signWithPrivKey() {
     EVP_SignUpdate(ctx, pair.c_str(), pair.length());
     EVP_SignFinal(ctx, signature, &signature_len, privKey);
     EVP_MD_CTX_free(ctx);
+    EVP_PKEY_free(privKey);
 
     std::string toRet(reinterpret_cast<char*>(signature), signature_len);
     free(signature);
@@ -251,7 +254,9 @@ std::vector<char> CryptoClient::decryptSignatureWithK(std::vector<char> signedEn
 
 // chiamata dal client, fornisce {<g^b, g^a>A}k
 std::string CryptoClient::prepareSignedPair() {
-    return base64_encode(encryptSignatureWithK(signWithPrivKey()));
+    std::string signedPair = signWithPrivKey();
+    std::vector<char> encryptedSignedPair = encryptSignatureWithK(signedPair);
+    return base64_encode(encryptedSignedPair);
 }
 
 EVP_PKEY* CryptoClient::extractPubKeyFromCert(std::string serverCertificate) {
@@ -323,7 +328,9 @@ void CryptoClient::varCheck(std::string serverCertificate, std::vector<char> ser
     std::vector<char> signedPair = decryptSignatureWithK(serverSignedEncryptedPair);
     
     try {
-        verifySignature(signedPair, extractPubKeyFromCert(serverCertificate));
+        EVP_PKEY* certPublicKey = extractPubKeyFromCert(serverCertificate);
+        verifySignature(signedPair, certPublicKey);
+        EVP_PKEY_free(certPublicKey);
     } catch(std::exception const&e) {
         throw std::runtime_error(std::string("Errore varCheck: ") + e.what());
     }
@@ -409,7 +416,7 @@ void CryptoClient::receiveDHParameters(const std::string& dhParamsStr) {
 
     DH* DH = DH_new();
     // Creating and Setting DH Parameters
-    if (DH == nullptr) { 
+    if (DH == nullptr) {
         if (p) BN_free(p); 
         if (g) BN_free(g);
         throw std::runtime_error("Unable to create DH structure."); 
@@ -434,9 +441,10 @@ void CryptoClient::receiveDHParameters(const std::string& dhParamsStr) {
 
     // Assign DH Parameters to EVP_PKEY
     if (!EVP_PKEY_set1_DH(mDHParams, DH)) {
-        // EVP_PKEY_set1_DH takes ownership of dh, so no need to DH_free here.
+        DH_free(DH);
         throw std::runtime_error("Unable to assign DH parameters to EVP_PKEY.");
     }
+    DH_free(DH);
 }
 
 // Genera g^a

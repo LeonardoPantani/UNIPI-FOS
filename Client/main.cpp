@@ -80,6 +80,7 @@ int main() {
 
         if (!clientRunning) {
             close(sock);
+            delete crypto;
             return 0;
         }
 
@@ -88,7 +89,7 @@ int main() {
         // gestione thread inputhandler
         std::thread userInputThread(handle_user_input, sock, std::ref(clientRunning));
 
-        // avvio thread gestione server
+        // chiamo la funzione principale handle_server
         handle_server(sock, clientRunning);
 
         // unirsi al thread dell'input utente prima di terminare
