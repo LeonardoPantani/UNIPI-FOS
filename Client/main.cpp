@@ -84,7 +84,7 @@ int main() {
             return 0;
         }
 
-        std::cout << "> Connessione stabilita." << std::endl;
+        std::cout << "> Server trovato." << std::endl;
 
         // gestione thread inputhandler
         std::thread userInputThread(handle_user_input, sock, std::ref(clientRunning));
