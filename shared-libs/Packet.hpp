@@ -75,9 +75,8 @@ struct Packet {
     }
 
     std::string getContent() const {
-        //auto null_terminator_pos = std::find(mData.begin(), mData.end(), '\0');
-        //std::string content(mData.begin(), null_terminator_pos);
-        return mData.data();
+        std::string toRet(mData.data(), mData.size());
+        return toRet;
     }
 
     std::string getTypeAsString() const {

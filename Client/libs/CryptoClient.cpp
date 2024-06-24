@@ -590,7 +590,6 @@ std::vector<char> CryptoClient::encryptSessionMessage(std::vector<char> toEncryp
 
     std::string jsonString = jsonData.dump();
     std::vector<char> jsonVector(jsonString.begin(), jsonString.end());
-    std::cout << jsonVector.data() << std::endl;
 
     return jsonVector;
 }
@@ -605,8 +604,6 @@ std::vector<char> CryptoClient::decryptSessionMessage(const char* buffer, size_t
     std::vector<unsigned char> data = msg["data"];
     std::vector<unsigned char> iv = msg["iv"];
     std::vector<unsigned char> tag = msg["tag"];
-
-    std::cout << "Ricevuti: "  << data.size() << std::endl;
 
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {

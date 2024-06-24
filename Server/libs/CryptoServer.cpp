@@ -656,7 +656,6 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
 
     std::string jsonString = jsonData.dump();
     std::vector<char> jsonVector(jsonString.begin(), jsonString.end());
-    std::cout << "Inviati: "  << jsonData["data"].size() << std::endl;
 
     return jsonVector;
 }

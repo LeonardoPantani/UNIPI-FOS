@@ -18,10 +18,6 @@
 #include "PersistentMemory.hpp"
 #include "User.hpp"
 
-void addAuthUser(const std::string& nickname);
-void removeAuthUser(const std::string& nickname);
-bool isUserAuthenticated(const std::string& nickname);
-
 std::string generateVerificationCode();
 
 void handle_client(int client_socket);

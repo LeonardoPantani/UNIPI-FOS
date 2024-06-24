@@ -1,27 +1,5 @@
 #include "ClientManager.hpp"
 
-// Memoria locale per memorizzare i client che hanno terminato l'handshake
-std::mutex handshakeDoneSocketsMutex;
-std::vector<int> handshakeDoneSockets;
-
-void addHandshakeDone(const int client_socket) {
-    std::lock_guard<std::mutex> lock(handshakeDoneSocketsMutex);
-    handshakeDoneSockets.push_back(client_socket);
-}
-
-void removeHandshakeDone(const int client_socket) {
-    std::lock_guard<std::mutex> lock(handshakeDoneSocketsMutex);
-    auto it = std::remove(handshakeDoneSockets.begin(), handshakeDoneSockets.end(), client_socket);
-    if (it != handshakeDoneSockets.end()) {
-        handshakeDoneSockets.erase(it, handshakeDoneSockets.end());
-    }
-}
-
-bool isHandshakeDone(const int client_socket) {
-    std::lock_guard<std::mutex> lock(handshakeDoneSocketsMutex);
-    return std::find(handshakeDoneSockets.begin(), handshakeDoneSockets.end(), client_socket) != handshakeDoneSockets.end();
-}
-
 // Memoria locale per i client autenticati
 std::mutex authenticatedUsersMutex;
 std::vector<std::string> authenticatedUsers;
@@ -51,7 +29,7 @@ extern CryptoServer* crypto;
 
 std::string generateVerificationCode() {
     std::random_device rd; 
-    std::mt19937 gen(rd()); 
+    std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 9); 
     std::string result;
     for (int i = 0; i < 4; ++i) {
@@ -65,11 +43,17 @@ std::string generateVerificationCode() {
 void handle_client(int client_socket) {
     // per completare la registrazione
     User* toRegister = nullptr;
+
+    // viene riempito con il codice di verifica se l'utente si registra
     std::string clientVerificationCode = "-1";
 
     // per ricordarsi dell'utente autenticato
     User* currentUser = nullptr;
 
+    // per ricordarsi se l'handshake è stato fatto
+    bool isHandShakeDone = false;
+
+    // impostato a vero quando il client si disconnette
     bool clientQuit = false;
     try {
         char buffer[MAX_PACKET_SIZE];
@@ -98,13 +82,13 @@ void handle_client(int client_socket) {
             // Ci sono dati disponibili per la lettura, da qui in poi
             ssize_t bytes_read = read(client_socket, buffer, sizeof(buffer));
             if (bytes_read <= 0) {
-                if(currentUser != nullptr) removeAuthUser(currentUser->getNickname());
+                if(currentUser != nullptr) { removeAuthUser(currentUser->getNickname()); isHandShakeDone = false; }
                 std::cerr << "> La connessione col client " << client_socket << " si è chiusa inaspettatamente." << std::endl;
                 break;
             }
 
             Packet packet;
-            if(isHandshakeDone(client_socket)) {
+            if(isHandShakeDone) {
                 std::vector<char> decrypted = (*crypto).decryptSessionMessage(client_socket, buffer, bytes_read);
                 packet = Packet::deserialize(decrypted.data(), decrypted.size()); // decritta
             } else {
@@ -150,7 +134,6 @@ void handle_client(int client_socket) {
                 }
                 break;
                 case PacketType::HANDSHAKE_FINAL: {
-                    std::cout << packet.getContent() << std::endl;
                     nlohmann::json m3 = nlohmann::json::parse(packet.getContent());
                     std::string clientCertificate = m3["certificate"];
                     std::string clientSignedEncryptedPair = m3["signedEncryptedPair"];
@@ -163,20 +146,21 @@ void handle_client(int client_socket) {
                         std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
                     }
 
-                    addHandshakeDone(client_socket); // finito handshake
+                    isHandShakeDone = true; // finito handshake
                     std::cout << "> Handshake con client " << client_socket << " terminato." << std::endl;
                     
                 }
                 break;
                 case PacketType::BYE: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
                     std::cout << "> Il client " << client_socket << " si è disconnesso." << std::endl;
                     clientQuit = true;
+                    isHandShakeDone = false;
                     break;
                 }
                 break;
                 case PacketType::LOGIN_REQUEST: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
                     std::vector<std::string> tokens = splitInput(packet.getContent());
                     if(tokens.size() != 2) { // numero di argomenti errato
@@ -235,7 +219,7 @@ void handle_client(int client_socket) {
                 }
                 break;
                 case PacketType::REGISTER_REQUEST: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
                     std::vector<std::string> tokens = splitInput(packet.getContent());
                     if(tokens.size() != 3) { // numero di argomenti errato
@@ -306,7 +290,7 @@ void handle_client(int client_socket) {
                 }
                 break;
                 case PacketType::REGISTER_CHECK: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
                     std::string toCheck = packet.getContent();
                     if(toCheck != clientVerificationCode) {
@@ -340,7 +324,7 @@ void handle_client(int client_socket) {
                 }
                 break;
                 case PacketType::LOGOUT_REQUEST: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
                     if(currentUser != nullptr && !isUserAuthenticated(currentUser->getNickname())) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
@@ -364,11 +348,11 @@ void handle_client(int client_socket) {
                 }
                 break;
                 case PacketType::ERROR: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
                 }
                 break;
                 case PacketType::BBS_LIST: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
                     if(currentUser != nullptr && !isUserAuthenticated(currentUser->getNickname())) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
@@ -431,7 +415,7 @@ void handle_client(int client_socket) {
                 }
                 break;
                 case PacketType::BBS_GET: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
                     if(currentUser != nullptr && !isUserAuthenticated(currentUser->getNickname())) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
@@ -481,7 +465,7 @@ void handle_client(int client_socket) {
                 }
                 break;
                 case PacketType::BBS_ADD: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
                     if(currentUser != nullptr && !isUserAuthenticated(currentUser->getNickname())) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
@@ -534,7 +518,16 @@ void handle_client(int client_socket) {
                 }
                 break;
                 default: {
-                    if(!isHandshakeDone(client_socket)) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
+                    Packet errorPacket(PacketType::ERROR, "Pacchetto non previsto. Che stai facendo?");
+                    std::vector<char> serialized;
+                    if(isHandShakeDone) {
+                        serialized = (*crypto).encryptSessionMessage(client_socket, errorPacket.serialize());
+                    } else {
+                        serialized = errorPacket.serialize();
+                    }
+                    if (write(client_socket, serialized.data(), serialized.size()) == -1) {
+                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
+                    }
                 }
                 break;
             }
@@ -543,7 +536,12 @@ void handle_client(int client_socket) {
         // il server invia SERVER_CLOSING (non criptato)
         if(!serverRunning) {
             Packet closingPacket(PacketType::SERVER_CLOSING);
-            std::vector<char> serialized = closingPacket.serialize();
+            std::vector<char> serialized;
+            if(isHandShakeDone) {
+                serialized = (*crypto).encryptSessionMessage(client_socket, closingPacket.serialize());
+            } else {
+                serialized = closingPacket.serialize();
+            }
             if (write(client_socket, serialized.data(), serialized.size()) == -1) {
                 std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
             }
@@ -554,7 +552,7 @@ void handle_client(int client_socket) {
     }
     close(client_socket);
 
-    removeHandshakeDone(client_socket); // client disconnesso
+    isHandShakeDone = false; // client disconnesso
     if(currentUser != nullptr) removeAuthUser(currentUser->getNickname()); // utente non più nella lista degli autenticati, se lo era
     // pulizia mappe
     (*crypto).removeClientSocket(client_socket);
