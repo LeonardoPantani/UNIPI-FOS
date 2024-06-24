@@ -2,7 +2,7 @@
 #ifndef CRYPTOCLIENT_HPP
 #define CRYPTOCLIENT_HPP
 
-#include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Json.hpp"
 #include "../../shared-libs/Utils.hpp"
 
 #include <openssl/bn.h>

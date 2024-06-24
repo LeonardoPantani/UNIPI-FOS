@@ -2,7 +2,7 @@
 #ifndef CRYPTOSERVER_HPP
 #define CRYPTOSERVER_HPP
 
-#include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Json.hpp"
 #include "../../shared-libs/Utils.hpp"
 
 #include <openssl/bn.h>

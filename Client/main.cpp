@@ -1,5 +1,5 @@
 #include "libs/ServerManager.hpp"
-#include "../shared-libs/configmanager.hpp"
+#include "../shared-libs/ConfigManager.hpp"
 #include "libs/CryptoClient.hpp"
 
 #include <iostream>
@@ -15,6 +15,12 @@
 // Percorso del file di configurazione
 const std::string configPath = "config.json";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxAttempsToConnect"};
+
+// Percorso certificati e chiavi
+const std::string certCaPath = "../shared-certificates/ca.pem";
+const std::string certCRLPath = "../shared-certificates/crl.pem";
+const std::string ownCertPath = "client_cert.pem";
+const std::string ownPrivKeyPath = "client_priv.pem";
 
 // Intervallo di default tra una connessione e l'altra
 const int connectionInterval = 5;
@@ -56,7 +62,7 @@ int main() {
         std::cout << std::endl;
 
         // lettura certificati
-        crypto = new CryptoClient("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "client_cert.pem", "client_priv.pem");
+        crypto = new CryptoClient(certCaPath, certCRLPath, ownCertPath, ownPrivKeyPath);
 
         int sock = 0;
         while (clientRunning) {

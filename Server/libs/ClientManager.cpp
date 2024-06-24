@@ -95,7 +95,7 @@ void handle_client(int client_socket) {
                 packet = Packet::deserialize(buffer, bytes_read);
             }
             
-            std::cout << "Client > " << packet.getTypeAsString() << std::endl;
+            //std::cout << "Client > " << packet.getTypeAsString() << std::endl;
             switch (packet.mType) { // pacchetti inviati dal client
                 case PacketType::HELLO: {
                     std::cout << "> Inizializzazione comunicazione con client " << client_socket << "." << std::endl;
@@ -347,10 +347,6 @@ void handle_client(int client_socket) {
                     }
                 }
                 break;
-                case PacketType::ERROR: {
-                    if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
-                }
-                break;
                 case PacketType::BBS_LIST: {
                     if(!isHandShakeDone) { clientQuit = true; break; } // se l'handshake non è stato completato questo pacchetto non dovrebbe mai arrivare
 
@@ -389,21 +385,27 @@ void handle_client(int client_socket) {
                         break;
                     }
 
-                    std::vector<Message> obtainedMessages = memory->getMessages(n);
 
-                    std::string toReturn = "========================================\n";
-                    if(n != 1) {
-                        toReturn += "ULTIMI " + std::to_string(obtainedMessages.size()) + " MESSAGGI:";
+                    std::vector<Message> obtainedMessages = memory->getMessages(n);
+                    std::string toReturn;
+
+                    if(obtainedMessages.size() == 0) {
+                        toReturn = "Non ci sono messaggi in bacheca.";
                     } else {
-                        toReturn += "ULTIMO MESSAGGIO:";
+                        toReturn = "========================================\n";
+                        if(n != 1) {
+                            toReturn += "ULTIMI " + std::to_string(obtainedMessages.size()) + " MESSAGGI:";
+                        } else {
+                            toReturn += "ULTIMO MESSAGGIO:";
+                        }
+                        for(Message m : obtainedMessages) {
+                            toReturn += "\n\n'" + m.getTitle() + "' di " + m.getAuthor() + ":\n";
+                            toReturn += m.getBody() + "\n";
+                            toReturn += "- Creato il " + m.getFormattedCreationTime() + "\n";
+                            toReturn += "- UUID: " + m.getUUID();
+                        }
+                        toReturn += "\n========================================";
                     }
-                    for(Message m : obtainedMessages) {
-                        toReturn += "\n\n'" + m.getTitle() + "' di " + m.getAuthor() + ":\n";
-                        toReturn += m.getBody() + "\n";
-                        toReturn += "- Creato il " + m.getFormattedCreationTime() + "\n";
-                        toReturn += "- UUID: " + m.getUUID();
-                    }
-                    toReturn += "\n========================================";
 
                     // rispondo con l'invio della lista dei messaggi in bacheca al client
                     Packet answerPacket(PacketType::BBS_LIST, toReturn);

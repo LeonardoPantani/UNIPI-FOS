@@ -1,4 +1,4 @@
-#include "../shared-libs/configmanager.hpp"
+#include "../shared-libs/ConfigManager.hpp"
 #include "libs/CryptoServer.hpp"
 #include "libs/ClientManager.hpp"
 #include "libs/PersistentMemory.hpp"
@@ -26,6 +26,12 @@ void signalHandler(int s) {
 // Percorso del file di configurazione
 const std::string configPath = "config.json";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
+
+// Percorso certificati e chiavi
+const std::string certCaPath = "../shared-certificates/ca.pem";
+const std::string certCRLPath = "../shared-certificates/crl.pem";
+const std::string ownCertPath = "server_cert.pem";
+const std::string ownPrivKeyPath = "server_priv.pem";
 
 // Controllo limite connessioni
 std::mutex connectionMutex;
@@ -62,7 +68,7 @@ int main() {
         std::cout << "> Max numero client: " << maxClients << std::endl;
         std::cout << std::endl;
 
-        crypto = new CryptoServer("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server_cert.pem", "server_priv.pem");
+        crypto = new CryptoServer(certCaPath, certCRLPath, ownCertPath, ownPrivKeyPath);
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         int opt = 1;

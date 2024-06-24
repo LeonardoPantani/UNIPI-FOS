@@ -1,0 +1,2 @@
+# Attenzione!
+**Client** e **Server** non funzioneranno se non vengono forniti loro, oltre ai propri certificati e chiavi private in formato .PEM, i file *ca.pem* e *crl.pem* all'interno di questa cartella.

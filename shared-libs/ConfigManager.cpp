@@ -1,5 +1,5 @@
-#include "configmanager.hpp"
-#include "json.hpp"
+#include "ConfigManager.hpp"
+#include "Json.hpp"
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;

@@ -58,3 +58,7 @@ shared-certificates/crl.pem
 
 # Custom: notes file
 notes.txt
+
+# Custom: build folder
+Client/build
+Server/build
