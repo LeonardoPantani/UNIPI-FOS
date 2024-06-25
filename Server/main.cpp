@@ -34,8 +34,7 @@ const std::string ownCertPath = "server_cert.pem";
 const std::string ownPrivKeyPath = "server_priv.pem";
 
 // Controllo limite connessioni
-std::mutex connectionMutex;
-int activeConnections = 0;
+volatile std::atomic<int> activeConnections = 0;
 
 // Memoria persistente
 PersistentMemory* memory = nullptr;
@@ -108,20 +107,15 @@ int main() {
                 continue;
             }
 
-            {
-                std::lock_guard<std::mutex> lock(connectionMutex);
-                if (activeConnections >= maxClients) {
-                    Packet fullPacket(PacketType::SERVER_FULL);
-                    std::vector<char> serialized = fullPacket.serialize();
-                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
-                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
-                        close(client_socket);
-                        continue;
-                    }
-                    close(client_socket);
-                    continue;
-                }
+            if (activeConnections >= maxClients) {
+                Packet fullPacket(PacketType::SERVER_FULL);
+                std::vector<char> serialized = fullPacket.serialize();
+                WRITE(client_socket, serialized);
+                close(client_socket);
+                continue;
             }
+
+            ++activeConnections;
 
             threads.emplace_back(handle_client, client_socket);
         }

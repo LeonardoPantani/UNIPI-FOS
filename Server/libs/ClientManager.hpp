@@ -18,8 +18,14 @@
 #include "PersistentMemory.hpp"
 #include "User.hpp"
 
-std::string generateVerificationCode();
+// variabili dal main
+extern PersistentMemory* memory;
+extern CryptoServer* crypto;
+extern volatile std::atomic<bool> serverRunning;
+extern volatile std::atomic<int> activeConnections;
 
+/// @brief Funzione principale eseguita in un thread che gestisce un singolo client.
+/// @param client_socket il descrittore del socket a cui il client è connesso
 void handle_client(int client_socket);
 
 #endif

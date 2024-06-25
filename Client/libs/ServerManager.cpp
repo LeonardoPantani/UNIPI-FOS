@@ -1,5 +1,6 @@
 #include "ServerManager.hpp"
 
+// qui ci sono le variabili che vengono usate sia dalla funzione handle_server che dalla funzione handle_input
 bool isVerificationCodeRequired = false;
 bool amIAuthenticated = false;
 extern CryptoClient* crypto;
@@ -24,7 +25,9 @@ Command getCommand(const std::string& command) {
     }
 }
 
-// Ottenimento corretto dell'input per il comando ADD
+/// @brief Gestisce l'input nel caso del comando BBS_ADD
+/// @param input l'input da spezzettare
+/// @return una tripla contenente 3 stringhe: <titolo, autore, messaggio>
 std::tuple<std::string, std::string, std::string> addMessageCommandParser(const std::string& input) {
     std::istringstream iss(input);
     std::string command, part1, part2, part3;
@@ -49,6 +52,7 @@ std::tuple<std::string, std::string, std::string> addMessageCommandParser(const 
     return std::make_tuple(part1, part2, part3);
 }
 
+
 void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
     bool serverClosing = false;
     bool isHandshakeDone = false;
@@ -59,10 +63,7 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
         // invio pacchetto HELLO iniziale al server con corpo
         Packet firstHelloPacket(PacketType::HELLO);
         std::vector<char> serializedHello = firstHelloPacket.serialize();
-        if(write(server_socket, serializedHello.data(), serializedHello.size()) == -1) {
-            std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-            throw std::runtime_error("Impossibile inviare HELLO al server.");
-        }
+        WRITET(server_socket, serializedHello, "Impossibile inviare HELLO al server.");
 
         while(clientRunning && !serverClosing) {
             memset(buffer, 0, sizeof(buffer));
@@ -92,7 +93,7 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
 
             Packet packet;
             if(isHandshakeDone) {
-                std::vector<char> decrypted = (*crypto).decryptSessionMessage(buffer, bytes_read);
+                std::vector<char> decrypted = crypto->decryptSessionMessage(buffer, bytes_read);
                 packet = Packet::deserialize(decrypted.data(), decrypted.size()); // decritta
             } else {
                 packet = Packet::deserialize(buffer, bytes_read);
@@ -104,15 +105,13 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
             switch (packet.mType) { // pacchetti inviati dal server
                 case PacketType::HELLO: { // - non necessario stampare qualcosa a schermo
                     // ho ricevuto i parametri g e p
-                    (*crypto).receiveDHParameters(packet.getContent());
+                    crypto->receiveDHParameters(packet.getContent());
 
                     // mando chiave pubblica al server
-                    std::string myPubKey = (*crypto).preparePublicKey();
+                    std::string myPubKey = crypto->preparePublicKey();
                     Packet handshakePacket(PacketType::HANDSHAKE, myPubKey);
-                    std::vector<char> serializedBye = handshakePacket.serialize();
-                    if (write(server_socket, serializedBye.data(), serializedBye.size()) == -1) {
-                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                    }
+                    std::vector<char> serialized = handshakePacket.serialize();
+                    WRITE(server_socket, serialized);
                 }
                 break;
                 case PacketType::HANDSHAKE: { // - non necessario stampare qualcosa a schermo
@@ -122,23 +121,21 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
                     std::string serverCertificate = jsonData["certificate"];
                     std::string serverSignedEncryptedPair = jsonData["signedEncryptedPair"];
 
-                    (*crypto).receivePublicKey(serverPublicKey); // g^b
-                    (*crypto).derivateK();
+                    crypto->receivePublicKey(serverPublicKey); // g^b
+                    crypto->derivateK();
 
                     // controllo pacchetto del server
-                    (*crypto).varCheck(serverCertificate, base64_decode(serverSignedEncryptedPair));
+                    crypto->varCheck(serverCertificate, base64_decode(serverSignedEncryptedPair));
 
-                    std::string mySignature = (*crypto).prepareSignedPair();
-                    std::string myCert = (*crypto).prepareCertificate();
+                    std::string mySignature = crypto->prepareSignedPair();
+                    std::string myCert = crypto->prepareCertificate();
                     nlohmann::json m3;
                     m3["signedEncryptedPair"] = mySignature;
                     m3["certificate"] = myCert;
 
                     Packet handshakeFinalPacket(PacketType::HANDSHAKE_FINAL, m3.dump());
-                    std::vector<char> serializedBye = handshakeFinalPacket.serialize();
-                    if (write(server_socket, serializedBye.data(), serializedBye.size()) == -1) {
-                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                    }
+                    std::vector<char> serialized = handshakeFinalPacket.serialize();
+                    WRITE(server_socket, serialized);
                 }
                 break;
                 case PacketType::HANDSHAKE_FINAL: {
@@ -205,13 +202,11 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
             Packet byePacket(PacketType::BYE);
             std::vector<char> serializedBye;
             if(isHandshakeDone) {
-                serializedBye = (*crypto).encryptSessionMessage(byePacket.serialize());
+                serializedBye = crypto->encryptSessionMessage(byePacket.serialize());
             } else {
                 serializedBye = byePacket.serialize();
             }
-            if (write(server_socket, serializedBye.data(), serializedBye.size()) == -1) {
-                std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-            }
+            WRITE(server_socket, serializedBye);
         }
     } catch (const std::exception& e) {
         clientRunning = false;
@@ -260,10 +255,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
 
                 // invio pacchetto REGISTER_REQUEST con corpo: email nickname password
                 Packet registerPacket(PacketType::REGISTER_REQUEST, (email + " " + nickname + " " + password));
-                std::vector<char> serializedLogin = (*crypto).encryptSessionMessage(registerPacket.serialize());
-                if(write(server_socket, serializedLogin.data(), serializedLogin.size()) == -1) {
-                    std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                }
+                std::vector<char> serialized = crypto->encryptSessionMessage(registerPacket.serialize());
+                WRITE(server_socket, serialized);
             }
             break;
             case CMD_LOGIN: {
@@ -283,10 +276,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
 
                 // invio pacchetto LOGIN_REQUEST con corpo: nickname password
                 Packet loginPacket(PacketType::LOGIN_REQUEST, (nickname + " " + password));
-                std::vector<char> serializedLogin = (*crypto).encryptSessionMessage(loginPacket.serialize());
-                if(write(server_socket, serializedLogin.data(), serializedLogin.size()) == -1) {
-                    std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                }
+                std::vector<char> serialized = crypto->encryptSessionMessage(loginPacket.serialize());
+                WRITE(server_socket, serialized);
             }
             break;
             case CMD_LOGOUT: {
@@ -297,10 +288,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
 
                 // invio pacchetto LOGOUT_REQUEST
                 Packet logoutPacket(PacketType::LOGOUT_REQUEST);
-                std::vector<char> serializedLogin = (*crypto).encryptSessionMessage(logoutPacket.serialize());
-                if(write(server_socket, serializedLogin.data(), serializedLogin.size()) == -1) {
-                    std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                }
+                std::vector<char> serialized = crypto->encryptSessionMessage(logoutPacket.serialize());
+                WRITE(server_socket, serialized);
             }
             break;
             case CMD_LIST: {
@@ -322,11 +311,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
 
                     // invio pacchetto BBS_LIST
                     Packet packet(PacketType::BBS_LIST, tokens[1]);
-                    std::vector<char> serialized = (*crypto).encryptSessionMessage(packet.serialize());
-                    if (write(server_socket, serialized.data(), serialized.size()) < 0) {
-                        std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                        break;
-                    }
+                    std::vector<char> serialized = crypto->encryptSessionMessage(packet.serialize());
+                    WRITE(server_socket, serialized);
                 } catch (std::exception&) {
                     std::cout << "[!] Argomento non valido." << std::endl;
                 }
@@ -351,11 +337,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
 
                 // invio pacchetto BBS_GET
                 Packet packet(PacketType::BBS_GET, uuid);
-                std::vector<char> serialized = (*crypto).encryptSessionMessage(packet.serialize());
-                if (write(server_socket, serialized.data(), serialized.size()) < 0) {
-                    std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                    break;
-                }
+                std::vector<char> serialized = crypto->encryptSessionMessage(packet.serialize());
+                WRITE(server_socket, serialized);
             }
             break;
             case CMD_ADD: {
@@ -392,11 +375,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                 
                 // invio pacchetto BBS_ADD
                 Packet packet(PacketType::BBS_ADD, jsonStr);
-                std::vector<char> serialized = (*crypto).encryptSessionMessage(packet.serialize());
-                if (write(server_socket, serialized.data(), serialized.size()) < 0) {
-                    std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                    break;
-                }
+                std::vector<char> serialized = crypto->encryptSessionMessage(packet.serialize());
+                WRITE(server_socket, serialized);
             }
             break;
             case CMD_HELP: {
@@ -415,10 +395,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                 std::string verificationCode = tokens[0];
                 // invio il codice di verifica
                 Packet verificationCodePacket(PacketType::REGISTER_CHECK, verificationCode);
-                std::vector<char> serializedLogin = (*crypto).encryptSessionMessage(verificationCodePacket.serialize());
-                if(write(server_socket, serializedLogin.data(), serializedLogin.size()) == -1) {
-                    std::cerr << "[!] Errore nella scrittura sul socket." << std::endl;
-                }
+                std::vector<char> serialized = crypto->encryptSessionMessage(verificationCodePacket.serialize());
+                WRITE(server_socket, serialized);
             }
             break;
             default:

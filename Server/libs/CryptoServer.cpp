@@ -662,7 +662,7 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
 
 std::vector<char> CryptoServer::decryptSessionMessage(int client_socket, const char* buffer, size_t size) {
     std::string json_str(buffer, size);
-    std::string plaintext;
+    std::string plaintext = "";
 
     nlohmann::json msg = nlohmann::json::parse(json_str);
     std::vector<unsigned char> data = msg["data"];
