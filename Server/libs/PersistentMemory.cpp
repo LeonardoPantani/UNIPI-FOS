@@ -130,7 +130,7 @@ std::string PersistentMemory::encrypt(const std::string& plainText) {
 
     int len;
     int cipherTextLen;
-    std::string cipherText(plainText.size() + 128, '\0');
+    std::string cipherText(plainText.size() + 256, '\0');
 
     if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, mKey, mIV))
         throw std::runtime_error("Inizializzazione cifratura fallita.");

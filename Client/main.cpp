@@ -29,7 +29,6 @@ const int connectionInterval = 5;
 volatile sig_atomic_t clientRunning = true;
 
 // Handler per il segnale CTRL+C (SIGINT)
-void signalHandler(int s);
 void signalHandler(int s) {
     clientRunning = false;
     std::cout << "\n" << "> Terminazione client." << std::endl;

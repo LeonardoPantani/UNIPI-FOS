@@ -3,6 +3,7 @@
 // qui ci sono le variabili che vengono usate sia dalla funzione handle_server che dalla funzione handle_input
 bool isVerificationCodeRequired = false;
 bool amIAuthenticated = false;
+long nonce = 0;
 extern CryptoClient* crypto;
 
 // Funzione per ottenere il comando dal testo inserito
@@ -93,7 +94,7 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
 
             Packet packet;
             if(isHandshakeDone) {
-                std::vector<char> decrypted = crypto->decryptSessionMessage(buffer, bytes_read);
+                std::vector<char> decrypted = crypto->decryptSessionMessage(buffer, bytes_read, &nonce);
                 packet = Packet::deserialize(decrypted.data(), decrypted.size()); // decritta
             } else {
                 packet = Packet::deserialize(buffer, bytes_read);
@@ -202,7 +203,7 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
             Packet byePacket(PacketType::BYE);
             std::vector<char> serializedBye;
             if(isHandshakeDone) {
-                serializedBye = crypto->encryptSessionMessage(byePacket.serialize());
+                serializedBye = crypto->encryptSessionMessage(byePacket.serialize(), &nonce);
             } else {
                 serializedBye = byePacket.serialize();
             }
@@ -255,28 +256,32 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
 
                 // invio pacchetto REGISTER_REQUEST con corpo: email nickname password
                 Packet registerPacket(PacketType::REGISTER_REQUEST, (email + " " + nickname + " " + password));
-                std::vector<char> serialized = crypto->encryptSessionMessage(registerPacket.serialize());
+                std::vector<char> serialized = crypto->encryptSessionMessage(registerPacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
             }
             break;
             case CMD_LOGIN: {
                 if (tokens.size() != 3) {
-                    std::cout << "[!] Uso corretto: login <nickname> <password>" << std::endl;
+                    std::cerr << "[!] Uso corretto: login <nickname> <password>" << std::endl;
                     break;
                 }
 
                 std::string nickname;
                 if (!validateLength(tokens[1], 16)) {
-                    std::cout << "[!] Il nickname non può superare i 16 caratteri." << std::endl;
+                    std::cerr << "[!] Il nickname non può superare i 16 caratteri." << std::endl;
                     break;
                 }
                 nickname = tokens[1];
 
-                std::string password = tokens[2];
+                if(amIAuthenticated) {
+                    std::cerr << "[!] Sei già autenticato. Effettua il logout prima." << std::endl;
+                    break;
+                }
 
+                std::string password = tokens[2];
                 // invio pacchetto LOGIN_REQUEST con corpo: nickname password
                 Packet loginPacket(PacketType::LOGIN_REQUEST, (nickname + " " + password));
-                std::vector<char> serialized = crypto->encryptSessionMessage(loginPacket.serialize());
+                std::vector<char> serialized = crypto->encryptSessionMessage(loginPacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
             }
             break;
@@ -288,7 +293,7 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
 
                 // invio pacchetto LOGOUT_REQUEST
                 Packet logoutPacket(PacketType::LOGOUT_REQUEST);
-                std::vector<char> serialized = crypto->encryptSessionMessage(logoutPacket.serialize());
+                std::vector<char> serialized = crypto->encryptSessionMessage(logoutPacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
             }
             break;
@@ -310,8 +315,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                     }
 
                     // invio pacchetto BBS_LIST
-                    Packet packet(PacketType::BBS_LIST, tokens[1]);
-                    std::vector<char> serialized = crypto->encryptSessionMessage(packet.serialize());
+                    Packet bbsListPacket(PacketType::BBS_LIST, tokens[1]);
+                    std::vector<char> serialized = crypto->encryptSessionMessage(bbsListPacket.serialize(), &nonce);
                     WRITE(server_socket, serialized);
                 } catch (std::exception&) {
                     std::cout << "[!] Argomento non valido." << std::endl;
@@ -336,8 +341,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                 std::string uuid = tokens[1];
 
                 // invio pacchetto BBS_GET
-                Packet packet(PacketType::BBS_GET, uuid);
-                std::vector<char> serialized = crypto->encryptSessionMessage(packet.serialize());
+                Packet bbsGetPacket(PacketType::BBS_GET, uuid);
+                std::vector<char> serialized = crypto->encryptSessionMessage(bbsGetPacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
             }
             break;
@@ -374,8 +379,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                 std::string jsonStr = jsonData.dump();
                 
                 // invio pacchetto BBS_ADD
-                Packet packet(PacketType::BBS_ADD, jsonStr);
-                std::vector<char> serialized = crypto->encryptSessionMessage(packet.serialize());
+                Packet bbsAddPacket(PacketType::BBS_ADD, jsonStr);
+                std::vector<char> serialized = crypto->encryptSessionMessage(bbsAddPacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
             }
             break;
@@ -395,7 +400,7 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                 std::string verificationCode = tokens[0];
                 // invio il codice di verifica
                 Packet verificationCodePacket(PacketType::REGISTER_CHECK, verificationCode);
-                std::vector<char> serialized = crypto->encryptSessionMessage(verificationCodePacket.serialize());
+                std::vector<char> serialized = crypto->encryptSessionMessage(verificationCodePacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
             }
             break;

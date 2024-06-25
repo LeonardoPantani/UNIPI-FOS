@@ -17,7 +17,7 @@
 // Handler per il segnale CTRL+C (SIGINT)
 std::vector<std::thread> threads;
 volatile std::atomic<bool> serverRunning(true);
-void signalHandler(int s);
+
 void signalHandler(int s) {
     std::cout << "\n> Terminazione server." << std::endl;
     serverRunning.store(false);

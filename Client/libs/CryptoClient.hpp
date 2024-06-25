@@ -57,8 +57,8 @@ class CryptoClient {
         void verifySignature(std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
         void varCheck(std::string serverCertificate, std::vector<char> serverSignedEncryptedPair);
 
-        std::vector<char> encryptSessionMessage(std::vector<char> toEncrypt);
-        std::vector<char> decryptSessionMessage(const char* buffer, size_t size);
+        std::vector<char> encryptSessionMessage(std::vector<char> toEncrypt, long *nonce);
+        std::vector<char> decryptSessionMessage(const char* buffer, size_t size, long *nonce);
 };
 
 #endif

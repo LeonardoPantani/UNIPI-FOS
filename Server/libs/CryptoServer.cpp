@@ -244,7 +244,7 @@ std::vector<char> CryptoServer::encryptSignatureWithK(int client_socket, std::st
     }
 
     /* Encryption (initialization + single update + finalization) */
-    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, key, nullptr)) {
+    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_ecb(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_EncryptInit_ex failed");
     }
@@ -285,7 +285,7 @@ std::vector<char> CryptoServer::decryptSignatureWithK(int client_socket, std::ve
     }
 
     /* Decryption (initialization + single update + finalization) */
-    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, key, nullptr)) {
+    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_ecb(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_DecryptInit_ex failed");
     }
@@ -600,8 +600,14 @@ void CryptoServer::receivePublicKey(int client_socket, const std::string& peerPu
     BIO_free(bio);
 }
 
+// [nonce (8), packetType (4), dato (?)]
+std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::vector<char> toEncrypt, long *nonce) {
+    // aggiungiamo nonce+1 a toEncrypt all'inizio in modo che assuma il formato descritto sopra ^^
+    *nonce += 1;
+    std::vector<char> nonceBytes(sizeof(long));
+    std::memcpy(nonceBytes.data(), nonce, sizeof(long));
+    toEncrypt.insert(toEncrypt.begin(), nonceBytes.begin(), nonceBytes.end());
 
-std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::vector<char> toEncrypt) {
     std::vector<unsigned char> ciphertext;
     std::vector<unsigned char> tag;
 
@@ -615,7 +621,7 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
         throw std::runtime_error("Impossibile generare IV casuale.");
     }
 
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1) {
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL) != 1) {
         throw std::runtime_error("Errore EncryptInit_ex.");
     }
     if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, sizeof(iv), NULL) != 1) {
@@ -629,7 +635,7 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
     }
 
     int len;
-    ciphertext.resize(toEncrypt.size() + EVP_CIPHER_block_size(EVP_aes_128_gcm()));
+    ciphertext.resize(toEncrypt.size() + EVP_CIPHER_block_size(EVP_aes_256_gcm()));
     if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, reinterpret_cast<const unsigned char*>(toEncrypt.data()), toEncrypt.size()) != 1) {
         throw std::runtime_error("Errore EncryptUpdate.");
     }
@@ -660,9 +666,9 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
     return jsonVector;
 }
 
-std::vector<char> CryptoServer::decryptSessionMessage(int client_socket, const char* buffer, size_t size) {
+std::vector<char> CryptoServer::decryptSessionMessage(int client_socket, const char* buffer, size_t size, long *nonce) {
     std::string json_str(buffer, size);
-    std::string plaintext = "";
+    std::vector<char> plaintext;
 
     nlohmann::json msg = nlohmann::json::parse(json_str);
     std::vector<unsigned char> data = msg["data"];
@@ -676,7 +682,7 @@ std::vector<char> CryptoServer::decryptSessionMessage(int client_socket, const c
 
     const unsigned char* key = reinterpret_cast<const unsigned char*>(mPeersK[client_socket].data());
 
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, reinterpret_cast<const unsigned char*>(iv.data())) != 1) {
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, key, reinterpret_cast<const unsigned char*>(iv.data())) != 1) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("Errore DecryptInit_ex.");
     }
@@ -703,7 +709,19 @@ std::vector<char> CryptoServer::decryptSessionMessage(int client_socket, const c
     EVP_CIPHER_CTX_free(ctx);
 
     plaintext_buf.resize(plaintext_len);
-    plaintext.assign(reinterpret_cast<char*>(plaintext_buf.data()), plaintext_len);
+    plaintext.assign(plaintext_buf.begin(), plaintext_buf.end());
 
-    return std::vector<char>(plaintext.begin(), plaintext.end());
+    // Estrai i primi 8 byte di plaintext e convertili in un numero long
+    long toVerifyNonce;
+    std::memcpy(&toVerifyNonce, plaintext.data(), sizeof(long));
+    if(*nonce == 0) { // se sto decrittando il primo messaggio devo solo memorizzarmi il nonce
+        *nonce = toVerifyNonce;
+    } else {
+        if(toVerifyNonce != ++*nonce) {
+            throw std::runtime_error("Nonce del messaggio non corrisponde.");
+        }
+    }
+    plaintext.erase(plaintext.begin(), plaintext.begin() + sizeof(long));
+
+    return plaintext;
 }

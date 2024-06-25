@@ -39,6 +39,7 @@
         throw std::runtime_error(errorMsg); \
     }
 
+long generateRandomLong();
 std::string generateVerificationCode(size_t digitsToGenerate);
 std::vector<std::string> splitInput(const std::string& input);
 bool isValidEmail(const std::string& email);

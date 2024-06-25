@@ -60,6 +60,8 @@ void handle_client(int client_socket) {
     // viene impostato a TRUE quando il client si è disconnesso
     // è acceduto nel ciclo while sottostante in modo di uscire quando il client si disconnette
     bool clientQuit = false;
+
+    long nonce = 0;
     try {
         char buffer[MAX_PACKET_SIZE];
         
@@ -98,7 +100,7 @@ void handle_client(int client_socket) {
             // se non ho fatto l'handshake, lo elaboro così com'è
             Packet packet;
             if(isHandShakeDone) {
-                std::vector<char> decrypted = crypto->decryptSessionMessage(client_socket, buffer, bytes_read);
+                std::vector<char> decrypted = crypto->decryptSessionMessage(client_socket, buffer, bytes_read, &nonce);
                 packet = Packet::deserialize(decrypted.data(), decrypted.size());
             } else {
                 packet = Packet::deserialize(buffer, bytes_read);
@@ -157,6 +159,7 @@ void handle_client(int client_socket) {
                     std::cout << "> Il client " << client_socket << " si è disconnesso." << std::endl;
                     clientQuit = true;
                     isHandShakeDone = false;
+                    nonce = 0;
                     break;
                 }
                 break;
@@ -166,11 +169,18 @@ void handle_client(int client_socket) {
                     std::vector<std::string> tokens = splitInput(packet.getContent());
                     if(tokens.size() != 2) { // numero di argomenti errato
                         Packet answerErrorPacket(PacketType::ERROR, "Numero di argomenti errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
                     // da qui in poi il numero di argomenti è corretto
+
+                    if(currentUser != nullptr) {
+                        Packet answerErrorPacket(PacketType::ERROR, "Sei già autenticato.");
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
+                        WRITE(client_socket, serialized);
+                        break;
+                    }
                     
                     std::string nickname = tokens[0];
                     User toAuthenticate;
@@ -178,21 +188,21 @@ void handle_client(int client_socket) {
                         toAuthenticate = memory->getUser(nickname);
                     } catch (UserNotFoundException const&) {
                         Packet answerErrorPacket(PacketType::ERROR, "Utente non trovato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
                     std::string password = tokens[1];
                     if(!toAuthenticate.checkPassword(password)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Password errata.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
 
                     if(isUserAuthenticated(&toAuthenticate)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Utente già autenticato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -203,7 +213,7 @@ void handle_client(int client_socket) {
 
                     // rispondo al client che l'utente è stato autenticato
                     Packet answerLoginOKPacket(PacketType::LOGIN_OK);
-                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerLoginOKPacket.serialize());
+                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerLoginOKPacket.serialize(), &nonce);
                     WRITE(client_socket, serialized);
                 }
                 break;
@@ -213,7 +223,7 @@ void handle_client(int client_socket) {
                     std::vector<std::string> tokens = splitInput(packet.getContent());
                     if(tokens.size() != 3) { // numero di argomenti errato
                         Packet answerErrorPacket(PacketType::ERROR, "Numero di argomenti errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -223,14 +233,14 @@ void handle_client(int client_socket) {
                     std::string password;
                     if(!isValidEmail(tokens[0])) {
                         Packet answerErrorPacket(PacketType::ERROR, "Formato email errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                     }
                     email = tokens[0];
                     
                     if (!validateLength(tokens[1], 16)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Formato nickname errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                     }
                     bool userFound = true;
@@ -241,7 +251,7 @@ void handle_client(int client_socket) {
                     }
                     if(userFound) {
                         Packet answerErrorPacket(PacketType::ERROR, "Utente '" + tokens[1] + "' già registrato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -251,7 +261,7 @@ void handle_client(int client_socket) {
 
                     // simulo l'invio di una email con un codice al client e informo il client che dovrà inserire un codice
                     Packet answerRegisterCheckPacket(PacketType::REGISTER_CHECK);
-                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerRegisterCheckPacket.serialize());
+                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerRegisterCheckPacket.serialize(), &nonce);
                     WRITEB(client_socket, serialized);
 
                     // genero il codice di verifica del client per la registrazione
@@ -270,21 +280,21 @@ void handle_client(int client_socket) {
                     std::string toCheck = packet.getContent();
                     if(clientVerificationCode != "-1" && toCheck != clientVerificationCode) {
                         Packet answerErrorPacket(PacketType::ERROR, "Codice di verifica errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
                     
                     if(toRegister == nullptr) {
                         Packet answerErrorPacket(PacketType::ERROR, "Errore durante la procedura di verifica.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITEB(client_socket, serialized);
                     }
 
                     memory->addUser(*toRegister);
 
                     Packet answerRegisterOKPacket(PacketType::REGISTER_OK);
-                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerRegisterOKPacket.serialize());
+                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerRegisterOKPacket.serialize(), &nonce);
                     WRITE(client_socket, serialized);
 
                     clientVerificationCode = "-1";
@@ -295,7 +305,7 @@ void handle_client(int client_socket) {
 
                     if(!isUserAuthenticated(currentUser)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -306,7 +316,7 @@ void handle_client(int client_socket) {
 
                     // invio conferma al client
                     Packet answerLogoutOKPacket(PacketType::LOGOUT_OK);
-                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerLogoutOKPacket.serialize());
+                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerLogoutOKPacket.serialize(), &nonce);
                     WRITE(client_socket, serialized);
                 }
                 break;
@@ -315,7 +325,7 @@ void handle_client(int client_socket) {
 
                     if(!isUserAuthenticated(currentUser)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -323,7 +333,7 @@ void handle_client(int client_socket) {
                     std::vector<std::string> tokens = splitInput(packet.getContent());
                     if(tokens.size() != 1) { // numero di argomenti errato
                         Packet answerErrorPacket(PacketType::ERROR, "Numero di argomenti errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -337,7 +347,7 @@ void handle_client(int client_socket) {
                         if(n == 0) throw std::runtime_error("Argomento uguale a 0.");
                     } catch (std::exception const&) {
                         Packet answerErrorPacket(PacketType::ERROR, "Argomento errato: deve essere un numero naturale diverso da 0.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -366,7 +376,7 @@ void handle_client(int client_socket) {
 
                     // rispondo con l'invio della lista dei messaggi in bacheca al client
                     Packet answerPacket(PacketType::BBS_LIST, toReturn);
-                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerPacket.serialize());
+                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerPacket.serialize(), &nonce);
                     WRITE(client_socket, serialized);
                 }
                 break;
@@ -375,7 +385,7 @@ void handle_client(int client_socket) {
 
                     if(!isUserAuthenticated(currentUser)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -383,7 +393,7 @@ void handle_client(int client_socket) {
                     std::string uuid = packet.getContent();
                     if(!isValidUUID(uuid)) {
                         Packet answerErrorPacket(PacketType::ERROR);
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -393,7 +403,7 @@ void handle_client(int client_socket) {
                         m = memory->getMessage(uuid);
                     } catch(MessageNotFoundException const&) {
                         Packet answerErrorPacket(PacketType::ERROR, "Messaggio non trovato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -407,7 +417,7 @@ void handle_client(int client_socket) {
 
                     // rispondo con l'invio del messaggio della bacheca al client
                     Packet answerPacket(PacketType::BBS_GET, toReturn);
-                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerPacket.serialize());
+                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerPacket.serialize(), &nonce);
                     WRITE(client_socket, serialized);
                 }
                 break;
@@ -416,7 +426,7 @@ void handle_client(int client_socket) {
 
                     if(!isUserAuthenticated(currentUser)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Non sei autenticato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -429,17 +439,17 @@ void handle_client(int client_socket) {
 
                     if (!validateLength(author, 16)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Formato campo 'autore' errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     } else if (!validateLength(title, 32)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Formato campo 'titolo' errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     } else if (!validateLength(body, 300)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Formato campo 'corpo' errato.");
-                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize());
+                        std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
                         break;
                     }
@@ -449,7 +459,7 @@ void handle_client(int client_socket) {
 
                     // rispondo con l'invio della conferma al client
                     Packet answerPacket(PacketType::BBS_ADD, newMSG.getUUID());
-                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerPacket.serialize());
+                    std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerPacket.serialize(), &nonce);
                     WRITE(client_socket, serialized);
                 }
                 break;
@@ -457,7 +467,7 @@ void handle_client(int client_socket) {
                     Packet errorPacket(PacketType::ERROR, "Pacchetto non previsto. Che stai facendo?");
                     std::vector<char> serialized;
                     if(isHandShakeDone)
-                        serialized = crypto->encryptSessionMessage(client_socket, errorPacket.serialize());
+                        serialized = crypto->encryptSessionMessage(client_socket, errorPacket.serialize(), &nonce);
                     else
                         serialized = errorPacket.serialize();
                     WRITE(client_socket, serialized);
@@ -471,7 +481,7 @@ void handle_client(int client_socket) {
             Packet closingPacket(PacketType::SERVER_CLOSING);
             std::vector<char> serialized;
             if(isHandShakeDone)
-                serialized = crypto->encryptSessionMessage(client_socket, closingPacket.serialize());
+                serialized = crypto->encryptSessionMessage(client_socket, closingPacket.serialize(), &nonce);
             else
                 serialized = closingPacket.serialize();
             WRITE(client_socket, serialized);
@@ -483,6 +493,7 @@ void handle_client(int client_socket) {
     close(client_socket);
     --activeConnections; // decremento connessioni attive
     isHandShakeDone = false; // client disconnesso
+    nonce = 0;
     removeAuthUser(currentUser); // utente non più nella lista degli autenticati, se lo era
     currentUser = nullptr;
     crypto->removeClientSocket(client_socket);

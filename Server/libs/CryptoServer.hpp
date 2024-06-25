@@ -65,8 +65,8 @@ class CryptoServer {
         void verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
         void varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair);
 
-        std::vector<char> encryptSessionMessage(int client_socket, std::vector<char> toEncrypt);
-        std::vector<char> decryptSessionMessage(int client_socket, const char* buffer, size_t size);
+        std::vector<char> encryptSessionMessage(int client_socket, std::vector<char> toEncrypt, long *nonce);
+        std::vector<char> decryptSessionMessage(int client_socket, const char* buffer, size_t size, long *nonce);
 };
 
 #endif
