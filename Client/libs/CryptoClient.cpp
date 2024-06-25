@@ -74,7 +74,7 @@ CryptoClient::~CryptoClient() {
     X509_STORE_free(mStore);
     EVP_PKEY_free(mDHParams);
     EVP_PKEY_free(mMyPublicKey);
-    //EVP_PKEY_free(mMySecret); // TODO per qualche ragione blocca il thread dell'input handler?
+    EVP_PKEY_free(mPeerPublicKey);
 }
 
 bool CryptoClient::storeCertificate(X509* toStore) {
@@ -187,7 +187,7 @@ std::vector<char> CryptoClient::encryptSignatureWithK(std::string signedPair) {
     }
 
     /* Encryption (initialization + single update + finalization) */
-    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, key, nullptr)) {
+    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_ecb(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_EncryptInit_ex failed");
     }
@@ -228,7 +228,7 @@ std::vector<char> CryptoClient::decryptSignatureWithK(std::vector<char> signedEn
     }
 
     /* Decryption (initialization + single update + finalization) */
-    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, key, nullptr)) {
+    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_ecb(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_DecryptInit_ex failed");
     }
@@ -532,4 +532,134 @@ void CryptoClient::receivePublicKey(const std::string& peerPublicKey) {
 
     // Pulizia del BIO
     BIO_free(bio);
+}
+
+
+// [nonce (8), packetType (4), dato (?)]
+std::vector<char> CryptoClient::encryptSessionMessage(std::vector<char> toEncrypt, long *nonce) {
+    if(*nonce == 0) {
+        *nonce = generateRandomLong(); // al messaggio successivo al termine dell'handshake verrà usato questo nonce casuale
+    } else {
+        *nonce += 1;
+    }
+    // aggiungiamo nonce a toEncrypt all'inizio in modo che assuma il formato descritto sopra ^^
+    std::vector<char> nonceBytes(sizeof(long));
+    std::memcpy(nonceBytes.data(), nonce, sizeof(long));
+    toEncrypt.insert(toEncrypt.begin(), nonceBytes.begin(), nonceBytes.end());
+
+    // cifratura
+    std::vector<unsigned char> ciphertext;
+    std::vector<unsigned char> tag;
+
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        throw std::runtime_error("Impossibile creare contesto.");
+    }
+
+    unsigned char iv[12]; // GCM standard IV size is 12 bytes
+    if (RAND_bytes(iv, sizeof(iv)) != 1) {
+        throw std::runtime_error("Impossibile generare IV casuale.");
+    }
+
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL) != 1) {
+        throw std::runtime_error("Errore EncryptInit_ex.");
+    }
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, sizeof(iv), NULL) != 1) {
+        throw std::runtime_error("Errore CIPHER_CTX_ctrl.");
+    }
+
+    const unsigned char* key = reinterpret_cast<const unsigned char*>(mPeerK.data());
+
+    if (EVP_EncryptInit_ex(ctx, nullptr, nullptr, key, iv) != 1) {
+        throw std::runtime_error("Errore EncryptInit_ex.");
+    }
+
+    int len;
+    ciphertext.resize(toEncrypt.size() + EVP_CIPHER_block_size(EVP_aes_256_gcm()));
+    if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, reinterpret_cast<const unsigned char*>(toEncrypt.data()), toEncrypt.size()) != 1) {
+        throw std::runtime_error("Errore EncryptUpdate.");
+    }
+    int ciphertext_len = len;
+
+    if (EVP_EncryptFinal_ex(ctx, ciphertext.data() + len, &len) != 1) {
+        throw std::runtime_error("Errore EncryptFinal_ex.");
+    }
+    ciphertext_len += len;
+
+    ciphertext.resize(ciphertext_len);
+
+    tag.resize(16); // GCM standard tag size is 16 bytes
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag.size(), tag.data()) != 1) {
+        throw std::runtime_error("Errore CIPHER_CTX_ctrl.");
+    }
+
+    EVP_CIPHER_CTX_free(ctx);
+
+    nlohmann::json jsonData;
+    jsonData["data"] = ciphertext;
+    jsonData["iv"] = iv;
+    jsonData["tag"] = tag;
+
+    std::string jsonString = jsonData.dump();
+    std::vector<char> jsonVector(jsonString.begin(), jsonString.end());
+
+    return jsonVector;
+}
+
+// chi manda i dati (li cripta forse) non pulisce e quindi se il messaggio prima era più lungo rimane anche in quello nuovo
+
+std::vector<char> CryptoClient::decryptSessionMessage(const char* buffer, size_t size, long *nonce) {
+    std::string json_str(buffer, size);
+    std::vector<char> plaintext;
+
+    nlohmann::json msg = nlohmann::json::parse(json_str);
+    std::vector<unsigned char> data = msg["data"];
+    std::vector<unsigned char> iv = msg["iv"];
+    std::vector<unsigned char> tag = msg["tag"];
+
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if (!ctx) {
+        throw std::runtime_error("Impossibile creare contesto.");
+    }
+
+    const unsigned char* key = reinterpret_cast<const unsigned char*>(mPeerK.data());
+
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, key, reinterpret_cast<const unsigned char*>(iv.data())) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("Errore DecryptInit_ex.");
+    }
+
+    int len;
+    std::vector<unsigned char> plaintext_buf(data.size() + EVP_MAX_BLOCK_LENGTH);
+    if (EVP_DecryptUpdate(ctx, plaintext_buf.data(), &len, reinterpret_cast<const unsigned char*>(data.data()), data.size()) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("Errore DecryptUpdate.");
+    }
+    int plaintext_len = len;
+
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, tag.size(), reinterpret_cast<void*>(tag.data())) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("Errore CIPHER_CTX_ctrl.");
+    }
+
+    if (EVP_DecryptFinal_ex(ctx, plaintext_buf.data() + plaintext_len, &len) != 1) {
+        EVP_CIPHER_CTX_free(ctx);
+        throw std::runtime_error("Errore DecryptFinal_ex.");
+    }
+    plaintext_len += len;
+
+    EVP_CIPHER_CTX_free(ctx);
+
+    plaintext_buf.resize(plaintext_len);
+    plaintext.assign(plaintext_buf.begin(), plaintext_buf.end());
+
+    // Estrai i primi 8 byte di plaintext e convertili in un numero long
+    long toVerifyNonce;
+    std::memcpy(&toVerifyNonce, plaintext.data(), sizeof(long));
+    if(toVerifyNonce != ++*nonce) {
+        throw std::runtime_error("Nonce del messaggio non corrisponde.");
+    }
+    plaintext.erase(plaintext.begin(), plaintext.begin() + sizeof(long));
+
+    return plaintext;
 }

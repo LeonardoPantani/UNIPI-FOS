@@ -2,24 +2,12 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Compila tutto",
+            "label": "Configura Server",
             "type": "shell",
-            "command": "",
+            "command": "cmake",
             "args": [
-                "make",
-                "clean",
-                "--directory=${workspaceFolder}/Server;",
-                "make",
-                "-j",
-                "6",
-                "--directory=${workspaceFolder}/Server;",
-                "make",
-                "clean",
-                "--directory=${workspaceFolder}/Client;",
-                "make",
-                "-j",
-                "6",
-                "--directory=${workspaceFolder}/Client;"
+                "-S", "${workspaceFolder}/Server",
+                "-B", "${workspaceFolder}/Server/build"
             ],
             "group": {
                 "kind": "build",
@@ -28,21 +16,21 @@
             "presentation": {
                 "reveal": "always"
             },
-            "problemMatcher": "$msCompile"
-        },
+            "problemMatcher": []
+        },        
         {
             "label": "Compila Server",
             "type": "shell",
-            "command": "",
+            "command": "cmake",
             "args": [
-                "make",
-                "clean",
-                "--directory=${workspaceFolder}/Server;",
-                "make",
+                "--build",
+                "${workspaceFolder}/Server/build",
+                "--target",
+                "main",
                 "-j",
-                "6",
-                "--directory=${workspaceFolder}/Server;"
+                "6"
             ],
+            "dependsOn": "Configura Server",
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -50,43 +38,42 @@
             "presentation": {
                 "reveal": "always"
             },
-            "problemMatcher": "$msCompile"
+            "problemMatcher": []
         },
         {
-            "label": "Compila Server e cancella config",
+            "label": "Configura Client",
             "type": "shell",
-            "command": "",
+            "command": "cmake",
             "args": [
-                "make",
-                "cleann",
-                "--directory=${workspaceFolder}/Server;",
-                "make",
-                "-j",
-                "6",
-                "--directory=${workspaceFolder}/Server;"
+                "-S",
+                "${workspaceFolder}/Client",
+                "-B",
+                "${workspaceFolder}/Client/build"
             ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
+            "options": {
+                "cwd": "${workspaceFolder}/Client"
             },
             "presentation": {
-                "reveal": "always"
+                "echo": false,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
             },
-            "problemMatcher": "$msCompile"
+            "problemMatcher": []
         },
         {
             "label": "Compila Client",
             "type": "shell",
-            "command": "",
+            "command": "cmake",
             "args": [
-                "make",
-                "clean",
-                "--directory=${workspaceFolder}/Client;",
-                "make",
+                "--build",
+                "${workspaceFolder}/Client/build",
+                "--target",
+                "main",
                 "-j",
-                "6",
-                "--directory=${workspaceFolder}/Client;"
+                "6"
             ],
+            "dependsOn": "Configura Client",
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -94,41 +81,15 @@
             "presentation": {
                 "reveal": "always"
             },
-            "problemMatcher": "$msCompile"
-        },
-        {
-            "label": "Compila Client e cancella config",
-            "type": "shell",
-            "command": "",
-            "args": [
-                "make",
-                "cleann",
-                "--directory=${workspaceFolder}/Client;",
-                "make",
-                "-j",
-                "6",
-                "--directory=${workspaceFolder}/Client;"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "presentation": {
-                "reveal": "always"
-            },
-            "problemMatcher": "$msCompile"
+            "problemMatcher": []
         },
         {
             "label": "Pulisci tutto",
             "type": "shell",
-            "command": "",
+            "command": "bash",
             "args": [
-                "make",
-                "clean",
-                "--directory=${workspaceFolder}/Server;",
-                "make",
-                "clean",
-                "--directory=${workspaceFolder}/Client;"
+                "-c",
+                "cmake --build ${workspaceFolder}/Server/build --target clean && cmake --build ${workspaceFolder}/Client/build --target clean"
             ],
             "group": {
                 "kind": "build",
@@ -137,7 +98,24 @@
             "presentation": {
                 "reveal": "always"
             },
-            "problemMatcher": "$msCompile"
+            "problemMatcher": []
+        },
+        {
+            "label": "Compila tutto",
+            "type": "shell",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Compila Server",
+                "Compila Client"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
         }
     ]
 }

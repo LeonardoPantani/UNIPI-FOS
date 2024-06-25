@@ -2,7 +2,7 @@
 #ifndef CRYPTOCLIENT_HPP
 #define CRYPTOCLIENT_HPP
 
-#include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Json.hpp"
 #include "../../shared-libs/Utils.hpp"
 
 #include <openssl/bn.h>
@@ -12,6 +12,7 @@
 #include <openssl/x509_vfy.h>
 #include <openssl/dh.h>
 #include <openssl/param_build.h>
+#include <openssl/rand.h>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -55,6 +56,9 @@ class CryptoClient {
         EVP_PKEY* extractPubKeyFromCert(std::string serverCertificate);
         void verifySignature(std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
         void varCheck(std::string serverCertificate, std::vector<char> serverSignedEncryptedPair);
+
+        std::vector<char> encryptSessionMessage(std::vector<char> toEncrypt, long *nonce);
+        std::vector<char> decryptSessionMessage(const char* buffer, size_t size, long *nonce);
 };
 
 #endif

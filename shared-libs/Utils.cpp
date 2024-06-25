@@ -1,5 +1,26 @@
 #include "Utils.hpp"
 
+// Funzione che genera un codice numerico casuale di x cifre
+std::string generateVerificationCode(size_t digitsToGenerate) {
+    std::random_device rd; 
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 9); 
+    std::string result;
+    for (size_t i = 0; i < digitsToGenerate; ++i) {
+        int randomNumber = dis(gen);
+        result += std::to_string(randomNumber);
+    }
+    return result;
+}
+
+// Funzione che genera un numero casuale con generatore non-deterministico a 32 bit
+long generateRandomLong() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<long> dis(0, 0xFFFFFFFF); // Distribuzione uniforme tra 0 e 2^32-1
+    return dis(gen);
+}
+
 // Funzione per dividere una stringa in argomenti
 std::vector<std::string> splitInput(const std::string& input) {
     std::istringstream iss(input);

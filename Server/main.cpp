@@ -1,4 +1,4 @@
-#include "../shared-libs/configmanager.hpp"
+#include "../shared-libs/ConfigManager.hpp"
 #include "libs/CryptoServer.hpp"
 #include "libs/ClientManager.hpp"
 #include "libs/PersistentMemory.hpp"
@@ -17,7 +17,7 @@
 // Handler per il segnale CTRL+C (SIGINT)
 std::vector<std::thread> threads;
 volatile std::atomic<bool> serverRunning(true);
-void signalHandler(int s);
+
 void signalHandler(int s) {
     std::cout << "\n> Terminazione server." << std::endl;
     serverRunning.store(false);
@@ -27,9 +27,14 @@ void signalHandler(int s) {
 const std::string configPath = "config.json";
 const std::vector<std::string> configKeys = {"configVersion", "serverIP", "serverPort", "maxClients"};
 
+// Percorso certificati e chiavi
+const std::string certCaPath = "../shared-certificates/ca.pem";
+const std::string certCRLPath = "../shared-certificates/crl.pem";
+const std::string ownCertPath = "server_cert.pem";
+const std::string ownPrivKeyPath = "server_priv.pem";
+
 // Controllo limite connessioni
-std::mutex connectionMutex;
-int activeConnections = 0;
+volatile std::atomic<int> activeConnections = 0;
 
 // Memoria persistente
 PersistentMemory* memory = nullptr;
@@ -62,7 +67,7 @@ int main() {
         std::cout << "> Max numero client: " << maxClients << std::endl;
         std::cout << std::endl;
 
-        crypto = new CryptoServer("../shared-certificates/ca.pem", "../shared-certificates/crl.pem", "server_cert.pem", "server_priv.pem");
+        crypto = new CryptoServer(certCaPath, certCRLPath, ownCertPath, ownPrivKeyPath);
 
         int server_socket = socket(AF_INET, SOCK_STREAM, 0);
         int opt = 1;
@@ -102,20 +107,15 @@ int main() {
                 continue;
             }
 
-            {
-                std::lock_guard<std::mutex> lock(connectionMutex);
-                if (activeConnections >= maxClients) {
-                    Packet fullPacket(PacketType::SERVER_FULL);
-                    std::vector<char> serialized = fullPacket.serialize();
-                    if (write(client_socket, serialized.data(), serialized.size()) < 0) {
-                        std::cerr << "[!] Impossibile scrivere al client." << std::endl;
-                        close(client_socket);
-                        continue;
-                    }
-                    close(client_socket);
-                    continue;
-                }
+            if (activeConnections >= maxClients) {
+                Packet fullPacket(PacketType::SERVER_FULL);
+                std::vector<char> serialized = fullPacket.serialize();
+                WRITE(client_socket, serialized);
+                close(client_socket);
+                continue;
             }
+
+            ++activeConnections;
 
             threads.emplace_back(handle_client, client_socket);
         }

@@ -29,46 +29,44 @@ enum PacketType {
     BBS_ADD            /* sent by client (request) and server (answer): command add */
 };
 
-const size_t DATA_SIZE = 8192;
-const size_t PACKET_SIZE = sizeof(PacketType) + DATA_SIZE;
+const size_t MAX_DATA_SIZE = 4096;
+const size_t MAX_PACKET_SIZE = sizeof(PacketType) + MAX_DATA_SIZE;
 
 struct Packet {
     PacketType mType;
     std::vector<char> mData;
 
-    // Constructor that only accepts the package type (i.e. for HELLO packets)
-    Packet(PacketType packet_type) : mType(packet_type) {
-        mData.resize(DATA_SIZE, 0);
+    Packet() {
+        
     }
 
-    // Constructor accepting packet type and data as std::string
+    // Constructor that only accepts the package type
+    Packet(PacketType packet_type) : mType(packet_type) {
+        
+    }
+
+    // Constructor accepting packet type and data as "std::string"
     Packet(PacketType packet_type, const std::string& content): mType(packet_type), mData(content.begin(), content.end()) {
-        if (mData.size() > DATA_SIZE) {
-            throw std::runtime_error("Content size exceeds the limit of " + std::to_string(DATA_SIZE - 1) + " characters.");
-        } else {
-            mData.resize(DATA_SIZE, 0); // Padding with zeroes to ensure fixed size
+        if (mData.size() > MAX_DATA_SIZE) {
+            throw std::runtime_error("Content size exceeds the limit of " + std::to_string(MAX_PACKET_SIZE) + " characters.");
         }
     }
 
-    // New constructor accepting unsigned char* data
+    // Constructor accepting packet type and data as "char* data"
     Packet(PacketType packet_type, const unsigned char* data_input, size_t data_len): mType(packet_type) {
-        mData.resize(DATA_SIZE, 0);
-        std::memcpy(mData.data(), data_input, std::min(DATA_SIZE - 1, data_len));
+        std::memcpy(mData.data(), data_input, data_len);
     }
 
     // Constructor accepting buffer with size check
     Packet(const char* buffer, ssize_t size) {
-        if (size != PACKET_SIZE) {
-            throw std::runtime_error("Buffer size is invalid.");
-        }
         mType = static_cast<PacketType>(*buffer);
         mData.insert(mData.end(), buffer + sizeof(PacketType), buffer + size);
     }
 
     std::vector<char> serialize() const {
-        std::vector<char> serialized(PACKET_SIZE);
+        std::vector<char> serialized(sizeof(PacketType) + mData.size());
         serialized[0] = static_cast<char>(mType);
-        std::memcpy(serialized.data() + sizeof(PacketType), mData.data(), DATA_SIZE);
+        std::memcpy(serialized.data() + sizeof(PacketType), mData.data(), mData.size());
         return serialized;
     }
 
@@ -77,9 +75,8 @@ struct Packet {
     }
 
     std::string getContent() const {
-        auto null_terminator_pos = std::find(mData.begin(), mData.end(), '\0');
-        std::string content(mData.begin(), null_terminator_pos);
-        return content;
+        std::string toRet(mData.data(), mData.size());
+        return toRet;
     }
 
     std::string getTypeAsString() const {

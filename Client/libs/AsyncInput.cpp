@@ -24,7 +24,7 @@ AsyncInput::AsyncInput() : continueGettingInput(true), sendOverNextLine(true), i
                 input = synchronousInput;
             }
             sendOverNextLine = false;
-        } while (continueGettingInput && input != "exit");
+        } while (continueGettingInput);
     }).detach();
 }
 

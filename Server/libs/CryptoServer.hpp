@@ -2,7 +2,7 @@
 #ifndef CRYPTOSERVER_HPP
 #define CRYPTOSERVER_HPP
 
-#include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Json.hpp"
 #include "../../shared-libs/Utils.hpp"
 
 #include <openssl/bn.h>
@@ -12,6 +12,7 @@
 #include <openssl/x509_vfy.h>
 #include <openssl/dh.h>
 #include <openssl/param_build.h>
+#include <openssl/rand.h>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -27,6 +28,8 @@ class CryptoServer {
 
         std::map<int, EVP_PKEY*> mPeersPublicKeys;
         std::map<int, std::string> mPeersK;
+
+        std::map<int, EVP_PKEY*> mHMACKeys; // chiavi che usa il server per ottenere lo stesso HMAC tra client e server
 
         std::string mOwnPrivateKeyPath;
 
@@ -61,6 +64,9 @@ class CryptoServer {
         EVP_PKEY* extractPubKeyFromCert(std::string serverCertificate);
         void verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
         void varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair);
+
+        std::vector<char> encryptSessionMessage(int client_socket, std::vector<char> toEncrypt, long *nonce);
+        std::vector<char> decryptSessionMessage(int client_socket, const char* buffer, size_t size, long *nonce);
 };
 
 #endif

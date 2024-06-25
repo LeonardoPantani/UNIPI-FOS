@@ -14,7 +14,7 @@
 #include <string>
 #include <iterator>
 
-#include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Json.hpp"
 #include "../../shared-libs/Packet.hpp"
 #include "../../shared-libs/Utils.hpp"
 
@@ -31,9 +31,6 @@ enum Command {
     CMD_HELP,
     CMD_UNKNOWN
 };
-
-Command getCommand(const std::string& command);
-std::tuple<std::string, std::string, std::string> addMessageCommandParser(const std::string& input);
 
 void handle_server(int server_socket, volatile sig_atomic_t &clientRunning);
 void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning);

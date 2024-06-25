@@ -13,7 +13,7 @@
 #include "User.hpp"
 #include "Message.hpp"
 
-#include "../../shared-libs/json.hpp"
+#include "../../shared-libs/Json.hpp"
 
 class PersistentMemory {
     private:
