@@ -62,9 +62,11 @@ int main() {
         int maxClients = configManager.getInt("maxClients");
 
         std::cout << "FILE DI CONFIGURAZIONE SERVER (v." << configVersion <<") CARICATO: " << std::endl;
-        std::cout << "> Indirizzo IP: " << serverIP << std::endl;
-        std::cout << "> Porta: " << serverPort << std::endl;
-        std::cout << "> Max numero client: " << maxClients << std::endl;
+        std::cout << "├ Indirizzo IP: " << serverIP << std::endl;
+        std::cout << "├ Porta: " << serverPort << std::endl;
+        std::cout << "├ Max numero client: " << maxClients << std::endl;
+        std::cout << "│" << std::endl;
+        std::cout << "└ Per uscire dal programma premi 'CTRL/CMD' e 'C' contemporaneamente." << std::endl;
         std::cout << std::endl;
 
         crypto = new CryptoServer(certCaPath, certCRLPath, ownCertPath, ownPrivKeyPath);

@@ -2,23 +2,28 @@
 
 // Funzione che genera un codice numerico casuale di x cifre
 std::string generateVerificationCode(size_t digitsToGenerate) {
-    std::random_device rd; 
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 9); 
     std::string result;
+
+    unsigned char randomByte;
     for (size_t i = 0; i < digitsToGenerate; ++i) {
-        int randomNumber = dis(gen);
-        result += std::to_string(randomNumber);
+        if (RAND_bytes(&randomByte, sizeof(randomByte)) != 1) {
+            throw std::runtime_error("Errore generazione codice di verifica.");
+        }
+        int randomDigit = randomByte % 10; // numero tra 0 e 9
+        result += std::to_string(randomDigit);
     }
+
     return result;
 }
 
 // Funzione che genera un numero casuale con generatore non-deterministico a 32 bit
 long generateRandomLong() {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<long> dis(0, 0xFFFFFFFF); // Distribuzione uniforme tra 0 e 2^32-1
-    return dis(gen);
+    long random_value;
+    if (RAND_bytes(reinterpret_cast<unsigned char*>(&random_value), sizeof(random_value)) != 1) {
+        throw std::runtime_error("Errore generazione numero long casuale.");
+    }
+    random_value = random_value & 0x7FFFFFFFFFFFFFFF; // rendo il numero forzatamente positivo
+    return random_value;
 }
 
 // Funzione per dividere una stringa in argomenti
@@ -89,4 +94,10 @@ std::vector<char> base64_decode(const std::string &encoded) {
     BIO_free_all(bmem);
 
     return buffer;
+}
+
+void overwriteSecret(std::string &toOverwrite) {
+    std::memset(&toOverwrite[0], 0, toOverwrite.size()); // imposta a 0
+    toOverwrite.clear(); // libera la memoria ridimensionando a 0
+    toOverwrite.shrink_to_fit(); // forza il rilascio
 }

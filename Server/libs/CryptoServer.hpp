@@ -20,53 +20,42 @@
 class CryptoServer {
     private:
         X509_STORE* mStore;
-        ASN1_INTEGER* mOwnCertSN;
-        EVP_PKEY* mDHParams = nullptr; // p, g
-
+        ASN1_INTEGER* mOwnCertificationSerialNumber;
+        EVP_PKEY* mDHParameters = nullptr; // p, g
         std::map<int, EVP_PKEY*> mMyPublicKey; // g^b
         std::map<int, EVP_PKEY*> mMySecret; // b (esponente segreto)
-
-        std::map<int, EVP_PKEY*> mPeersPublicKeys;
-        std::map<int, std::string> mPeersK;
-
+        std::map<int, EVP_PKEY*> mPeersPublicKeys; // chiavi pubbliche dei client
+        std::map<int, std::string> mPeersK; // K dei client
         std::map<int, EVP_PKEY*> mHMACKeys; // chiavi che usa il server per ottenere lo stesso HMAC tra client e server
-
         std::string mOwnPrivateKeyPath;
+
+    
+        // metodi privati
+        bool storeCertificate(X509* certificate);
+        bool verifyCertificate(X509* toValidate);
+        std::string keyToString(EVP_PKEY* toConvert);
+        std::string signWithPrivateKey(int client_socket);
+        std::vector<char> encryptSignatureWithK(int client_socket, std::string signedPair);
+        std::vector<char> decryptSignatureWithK(int client_socket, std::vector<char> signedEncryptedPair);
+        void setDHParams(const std::string& dhParamsStr);
+
 
     public:
         CryptoServer(const std::string& caPath, const std::string& crlPath, const std::string& ownCertificatePath, const std::string& ownPrivateKeyPath);
         ~CryptoServer();
 
         void removeClientSocket(int client_socket);
-
-        void printCertificate(X509* cert);
-        bool storeCertificate(X509* certificate);
-        bool verifyCertificate(X509* toValidate);
         std::string prepareCertificate();
-        void printAllCertificates();
-
-        void printDHParameters();
-        std::string keyToString(EVP_PKEY* toConvert);
-        void printPubKey(int client_socket);
-
-
-        std::string signWithPrivKey(int client_socket);
         std::string prepareSignedPair(int client_socket);
-        std::vector<char> encryptSignatureWithK(int client_socket, std::string signedPair);
-        std::vector<char> decryptSignatureWithK(int client_socket, std::vector<char> signedEncryptedPair);
-
-        std::string prepareDHParams();
-        void setDHParams(const std::string& dhParamsStr);
+        std::string prepareDHParameters();
         std::string preparePublicKey(int client_socket);
         void receivePublicKey(int client_socket, const std::string& peerPublicKey);
         void derivateK(int client_socket);
-        
-        EVP_PKEY* extractPubKeyFromCert(std::string serverCertificate);
-        void verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
-        void varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair);
-
         std::vector<char> encryptSessionMessage(int client_socket, std::vector<char> toEncrypt, long *nonce);
         std::vector<char> decryptSessionMessage(int client_socket, const char* buffer, size_t size, long *nonce);
+        EVP_PKEY* extractPublicKeyFromCertificate(std::string serverCertificate);
+        void verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey);
+        void varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair);
 };
 
 #endif

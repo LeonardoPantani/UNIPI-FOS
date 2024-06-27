@@ -111,7 +111,7 @@ void handle_client(int client_socket) {
                     std::cout << "> Inizializzazione comunicazione con client " << client_socket << "." << std::endl;
 
                     // preparo la stringa contenente "P G" parametri DHKE separati da spazio
-                    std::string toSend = crypto->prepareDHParams();
+                    std::string toSend = crypto->prepareDHParameters();
 
                     Packet answerHelloPacket(PacketType::HELLO, toSend); // invio p e g al client
                     std::vector<char> serialized = answerHelloPacket.serialize();
@@ -197,8 +197,13 @@ void handle_client(int client_socket) {
                         Packet answerErrorPacket(PacketType::ERROR, "Password errata.");
                         std::vector<char> serialized = crypto->encryptSessionMessage(client_socket, answerErrorPacket.serialize(), &nonce);
                         WRITE(client_socket, serialized);
+                        // pulisco password
+                        overwriteSecret(tokens[1]); overwriteSecret(password);
                         break;
                     }
+                    // pulisco password
+                    overwriteSecret(tokens[1]); overwriteSecret(password);
+
 
                     if(isUserAuthenticated(&toAuthenticate)) {
                         Packet answerErrorPacket(PacketType::ERROR, "Utente già autenticato.");
@@ -272,6 +277,9 @@ void handle_client(int client_socket) {
                     
                     // preparo l'utente per la registrazione
                     toRegister = new User(email, nickname, password);
+
+                    // pulisco password
+                    overwriteSecret(tokens[2]); overwriteSecret(password);
                 }
                 break;
                 case PacketType::REGISTER_CHECK: {

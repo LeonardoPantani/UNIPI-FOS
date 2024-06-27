@@ -11,6 +11,8 @@
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
+#include <stdexcept>
+#include <openssl/rand.h>
 
 /// @brief Esegue l'istruzione write. Se dà errore, stampa su std::cerr
 /// @param socket il socket su cui scrivere
@@ -48,5 +50,9 @@ bool isValidUUID(const std::string& uuid);
 
 std::string base64_encode(const std::vector<char>& input);
 std::vector<char> base64_decode(const std::string &encoded);
+
+/// @brief Sovrascrive tutta l'area di memoria riservata a toOverwrite
+/// @param toOverwrite la variabile da sovrascrivere
+void overwriteSecret(std::string &toOverwrite);
 
 #endif

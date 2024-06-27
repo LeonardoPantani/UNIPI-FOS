@@ -55,9 +55,11 @@ int main() {
         if (maxAttempsToConnect > 10) throw std::runtime_error("Il parametro di configurazione 'maxAttempsToConnect' non può essere maggiore di 10.");
 
         std::cout << "FILE DI CONFIGURAZIONE CLIENT (v." << configVersion <<") CARICATO: " << std::endl;
-        std::cout << "> IP da raggiungere: " << serverIP << std::endl;
-        std::cout << "> Porta: " << serverPort << std::endl;
-        std::cout << "> Max. tentativi connessione: " << maxAttempsToConnect << std::endl;
+        std::cout << "├ IP da raggiungere: " << serverIP << std::endl;
+        std::cout << "├ Porta: " << serverPort << std::endl;
+        std::cout << "├ Max. tentativi connessione: " << maxAttempsToConnect << std::endl;
+        std::cout << "│" << std::endl;
+        std::cout << "└ Per uscire dal programma premi 'CTRL/CMD' e 'C' contemporaneamente." << std::endl;
         std::cout << std::endl;
 
         // lettura certificati

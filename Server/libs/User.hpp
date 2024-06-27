@@ -75,15 +75,6 @@ class User {
             std::vector<uint8_t> hash = hashPassword(passwordVec, mSalt);
             return hash == mPassword;
         }
-
-        // Metodo per convertire i byte in una stringa esadecimale (utile per debugging)
-        std::string bytesToHex(const std::vector<uint8_t>& bytes) const {
-            std::ostringstream oss;
-            for (auto byte : bytes) {
-                oss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(byte);
-            }
-            return oss.str();
-        }
 };
 
 #endif

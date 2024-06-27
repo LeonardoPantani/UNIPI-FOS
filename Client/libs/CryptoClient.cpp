@@ -38,13 +38,13 @@ CryptoClient::CryptoClient(const std::string& caPath, const std::string& crlPath
         }
         X509* ownCert = PEM_read_X509(file, NULL, NULL, NULL);
         if (!ownCert) {
-            throw std::runtime_error("Unable to read the certificate.");
+            throw std::runtime_error("Unable to read the certificate. It may be corrupted.");
         }
         fclose(file);
 
         // verifico il mio stesso certificato
         if (!verifyCertificate(ownCert)) {
-            throw std::runtime_error("Unable to verify own certificate.");
+            throw std::runtime_error("Unable to verify own certificate. Could it have been revoked?");
         }
 
         // controllo presenza chiave privata del certificato (non la valido ancora)
@@ -56,23 +56,22 @@ CryptoClient::CryptoClient(const std::string& caPath, const std::string& crlPath
         mOwnPrivateKeyPath = ownPrivateKeyPath;
 
         storeCertificate(ownCert);
-        mOwnCertSN = X509_get_serialNumber(ownCert);
+        mOwnCertificationSerialNumber = X509_get_serialNumber(ownCert);
         
         /* gestione parametri */
-        mDHParams = EVP_PKEY_new();
+        mDHParameters = EVP_PKEY_new();
 
         X509_free(ownCert);
         X509_free(caCert);
         X509_CRL_free(crl);
     } catch(std::runtime_error const&) {
-        fclose(file);
         throw;
     }
 }
 
 CryptoClient::~CryptoClient() {
     X509_STORE_free(mStore);
-    EVP_PKEY_free(mDHParams);
+    EVP_PKEY_free(mDHParameters);
     EVP_PKEY_free(mMyPublicKey);
     EVP_PKEY_free(mPeerPublicKey);
 }
@@ -109,7 +108,7 @@ std::string CryptoClient::prepareCertificate() {
         if (X509_OBJECT_get_type(obj) == X509_LU_X509) {
             X509* cert = X509_OBJECT_get0_X509(obj);
 
-            if (X509_get_serialNumber(cert) == mOwnCertSN) {
+            if (X509_get_serialNumber(cert) == mOwnCertificationSerialNumber) {
                 std::string cert_pem;
 
                 // Creazione di un BIO per memorizzare la rappresentazione PEM del certificato
@@ -139,7 +138,7 @@ std::string CryptoClient::prepareCertificate() {
 
 
 // funzione intermedia privat: firma la coppia <g^b, g^a>
-std::string CryptoClient::signWithPrivKey() {
+std::string CryptoClient::signWithPrivateKey() {
     std::string pair = keyToString(mPeerPublicKey) + " " + keyToString(mMyPublicKey);
 
     // carico da file la chiave privata (esponente b)
@@ -254,12 +253,12 @@ std::vector<char> CryptoClient::decryptSignatureWithK(std::vector<char> signedEn
 
 // chiamata dal client, fornisce {<g^b, g^a>A}k
 std::string CryptoClient::prepareSignedPair() {
-    std::string signedPair = signWithPrivKey();
+    std::string signedPair = signWithPrivateKey();
     std::vector<char> encryptedSignedPair = encryptSignatureWithK(signedPair);
     return base64_encode(encryptedSignedPair);
 }
 
-EVP_PKEY* CryptoClient::extractPubKeyFromCert(std::string serverCertificate) {
+EVP_PKEY* CryptoClient::extractPublicKeyFromCertificate(std::string serverCertificate) {
     // Creare un buffer di memoria dalla stringa del certificato
     BIO* bio = BIO_new_mem_buf(serverCertificate.data(), serverCertificate.size());
     if (!bio) {
@@ -328,22 +327,12 @@ void CryptoClient::varCheck(std::string serverCertificate, std::vector<char> ser
     std::vector<char> signedPair = decryptSignatureWithK(serverSignedEncryptedPair);
     
     try {
-        EVP_PKEY* certPublicKey = extractPubKeyFromCert(serverCertificate);
+        EVP_PKEY* certPublicKey = extractPublicKeyFromCertificate(serverCertificate);
         verifySignature(signedPair, certPublicKey);
         EVP_PKEY_free(certPublicKey);
     } catch(std::exception const&e) {
         throw std::runtime_error(std::string("Errore varCheck: ") + e.what());
     }
-}
-
-// DHKEP
-void CryptoClient::printDHParameters() {
-    if (!mDHParams) {
-        std::cerr << "I parametri DH non sono stati generati." << std::endl;
-        return;
-    }
-
-    EVP_PKEY_print_params_fp(stdout, mDHParams, 0, NULL);
 }
 
 std::string CryptoClient::keyToString(EVP_PKEY* toConvert) {
@@ -368,33 +357,6 @@ std::string CryptoClient::keyToString(EVP_PKEY* toConvert) {
     BIO_free(bio);
 
     return converted;
-}
-
-void CryptoClient::printPubKey() {
-    // Creazione del contesto BIO per l'output in memoria
-    BIO* bio = BIO_new(BIO_s_mem());
-    if (!bio) {
-        std::cerr << "Errore nella creazione del BIO in memoria" << std::endl;
-        return;
-    }
-
-    // Scrittura della chiave pubblica in formato PEM nel BIO
-    if (PEM_write_bio_PUBKEY(bio, mPeerPublicKey) <= 0) {
-        std::cerr << "Errore nella scrittura della chiave pubblica in formato PEM" << std::endl;
-        BIO_free(bio);
-        return;
-    }
-
-    // Lettura del contenuto del BIO in una stringa
-    BUF_MEM* mem = nullptr;
-    BIO_get_mem_ptr(bio, &mem);
-    std::string pubKeyStr(mem->data, mem->length);
-
-    // Pulizia del BIO
-    BIO_free(bio);
-
-    // Stampa della chiave pubblica
-    std::cout << pubKeyStr << std::endl;
 }
 
 void CryptoClient::receiveDHParameters(const std::string& dhParamsStr) {
@@ -440,7 +402,7 @@ void CryptoClient::receiveDHParameters(const std::string& dhParamsStr) {
     }
 
     // Assign DH Parameters to EVP_PKEY
-    if (!EVP_PKEY_set1_DH(mDHParams, DH)) {
+    if (!EVP_PKEY_set1_DH(mDHParameters, DH)) {
         DH_free(DH);
         throw std::runtime_error("Unable to assign DH parameters to EVP_PKEY.");
     }
@@ -450,7 +412,7 @@ void CryptoClient::receiveDHParameters(const std::string& dhParamsStr) {
 // Genera g^a
 std::string CryptoClient::preparePublicKey() {
     // Creazione del contesto per la generazione della chiave
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParams, NULL);
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParameters, NULL);
     if (!ctx) {
         throw std::runtime_error("Errore nella creazione del contesto EVP_PKEY_CTX");
     }

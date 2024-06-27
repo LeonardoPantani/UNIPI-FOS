@@ -41,13 +41,13 @@ CryptoServer::CryptoServer(const std::string& caPath, const std::string& crlPath
         }
         X509* ownCert = PEM_read_X509(file, NULL, NULL, NULL);
         if (!ownCert) {
-            throw std::runtime_error("Unable to read the certificate.");
+            throw std::runtime_error("Unable to read the certificate. It may be corrupted.");
         }
         fclose(file);
 
         // verifico il mio stesso certificato
         if (!verifyCertificate(ownCert)) {
-            throw std::runtime_error("Unable to verify own certificate.");
+            throw std::runtime_error("Unable to verify own certificate. Could it have been revoked?");
         }
 
         // controllo presenza chiave privata del certificato (non la valido ancora)
@@ -59,21 +59,20 @@ CryptoServer::CryptoServer(const std::string& caPath, const std::string& crlPath
         mOwnPrivateKeyPath = ownPrivateKeyPath;
 
         storeCertificate(ownCert);
-        mOwnCertSN = X509_get_serialNumber(ownCert);
+        mOwnCertificationSerialNumber = X509_get_serialNumber(ownCert);
         
         /* gestione parametri */
-        mDHParams = EVP_PKEY_new();
+        mDHParameters = EVP_PKEY_new();
 
         X509_free(ownCert);
     } catch(std::runtime_error const&) {
-        fclose(file);
         throw;
     }
 }
 
 CryptoServer::~CryptoServer() {
     X509_STORE_free(mStore);
-    EVP_PKEY_free(mDHParams);
+    EVP_PKEY_free(mDHParameters);
 
     // pulisco tutte le chiavi pubbliche che ho generato coi client
     for (auto it = mMyPublicKey.begin(); it != mMyPublicKey.end(); ++it) {
@@ -104,19 +103,6 @@ void CryptoServer::removeClientSocket(int client_socket) {
     mPeersK.erase(client_socket);
 }
 
-void CryptoServer::printCertificate(X509* cert) {
-    BIO* bio = BIO_new(BIO_s_mem());
-    if (PEM_write_bio_X509(bio, cert)) {
-        char* data;
-        long len = BIO_get_mem_data(bio, &data);
-        std::string cert_str(data, len);
-        std::cout << cert_str << std::endl;
-    } else {
-        throw std::runtime_error("Unable to print certificate.");
-    }
-    BIO_free(bio);
-}
-
 
 bool CryptoServer::storeCertificate(X509* toStore) {
     if (X509_STORE_add_cert(mStore, toStore) == -1) {
@@ -139,22 +125,6 @@ bool CryptoServer::verifyCertificate(X509* toValidate) {
     }
 }
 
-void CryptoServer::printAllCertificates() {
-    // Iterate over the certificates in the store
-    STACK_OF(X509_OBJECT)* objects = X509_STORE_get0_objects(mStore);
-    if (objects) {
-        for (int i = 0; i < sk_X509_OBJECT_num(objects); ++i) {
-            X509_OBJECT* obj = sk_X509_OBJECT_value(objects, i);
-            if (X509_OBJECT_get_type(obj) == X509_LU_X509) {
-                X509* cert = X509_OBJECT_get0_X509(obj);
-                printCertificate(cert);
-            }
-        }
-    } else {
-        std::cerr << "No objects in the X509_STORE" << std::endl;
-    }
-}
-
 std::string CryptoServer::prepareCertificate() {
     STACK_OF(X509_OBJECT)* objects = X509_STORE_get0_objects(mStore);
     if (!objects) {
@@ -166,7 +136,7 @@ std::string CryptoServer::prepareCertificate() {
         if (X509_OBJECT_get_type(obj) == X509_LU_X509) {
             X509* cert = X509_OBJECT_get0_X509(obj);
 
-            if (X509_get_serialNumber(cert) == mOwnCertSN) {
+            if (X509_get_serialNumber(cert) == mOwnCertificationSerialNumber) {
                 std::string cert_pem;
 
                 // Creazione di un BIO per memorizzare la rappresentazione PEM del certificato
@@ -195,8 +165,8 @@ std::string CryptoServer::prepareCertificate() {
 }
 
 
-// funzione intermedia privat: firma la coppia <g^b, g^a>
-std::string CryptoServer::signWithPrivKey(int client_socket) {
+// funzione intermedia privata: firma la coppia <g^b, g^a>
+std::string CryptoServer::signWithPrivateKey(int client_socket) {
     std::string pair = keyToString(mMyPublicKey[client_socket]) + " " + keyToString(mPeersPublicKeys[client_socket]);
 
     // carico da file la chiave privata (esponente b)
@@ -311,10 +281,10 @@ std::vector<char> CryptoServer::decryptSignatureWithK(int client_socket, std::ve
 
 // chiamata dal server, fornisce {<g^b, g^a>B}k
 std::string CryptoServer::prepareSignedPair(int client_socket) {
-    return base64_encode(encryptSignatureWithK(client_socket, signWithPrivKey(client_socket)));
+    return base64_encode(encryptSignatureWithK(client_socket, signWithPrivateKey(client_socket)));
 }
 
-EVP_PKEY* CryptoServer::extractPubKeyFromCert(std::string clientCertificate) {
+EVP_PKEY* CryptoServer::extractPublicKeyFromCertificate(std::string clientCertificate) {
     // Creare un buffer di memoria dalla stringa del certificato
     BIO* bio = BIO_new_mem_buf(clientCertificate.data(), clientCertificate.size());
     if (!bio) {
@@ -381,7 +351,7 @@ void CryptoServer::verifySignature(int client_socket, std::vector<char> signedPa
 
 void CryptoServer::varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair) {
     std::vector<char> signedPair = decryptSignatureWithK(client_socket, clientSignedEncryptedPair);
-    EVP_PKEY* certPubKey = extractPubKeyFromCert(serverCertificate);
+    EVP_PKEY* certPubKey = extractPublicKeyFromCertificate(serverCertificate);
     
     try {
         verifySignature(client_socket, signedPair, certPubKey);
@@ -390,16 +360,6 @@ void CryptoServer::varCheck(int client_socket, std::string serverCertificate, st
         EVP_PKEY_free(certPubKey);
         throw std::runtime_error(std::string("Errore varCheck: ") + e.what());
     }
-}
-
-// DHKEP
-void CryptoServer::printDHParameters() {
-    if (!mDHParams) {
-        std::cerr << "I parametri DH non sono stati generati." << std::endl;
-        return;
-    }
-
-    EVP_PKEY_print_params_fp(stdout, mDHParams, 0, NULL);
 }
 
 std::string CryptoServer::keyToString(EVP_PKEY* toConvert) {
@@ -448,12 +408,8 @@ EVP_PKEY* stringToKey(const std::string &keyStr) {
     return pkey;
 }
 
-void CryptoServer::printPubKey(int client_socket) {
-    std::cout << keyToString(mPeersPublicKeys[client_socket]) << std::endl;
-}
 
-
-std::string CryptoServer::prepareDHParams() {
+std::string CryptoServer::prepareDHParameters() {
     // Creare un contesto per generare i parametri DH
     EVP_PKEY_CTX* paramgen_ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_DH, NULL);
     if (!paramgen_ctx) {
@@ -473,7 +429,7 @@ std::string CryptoServer::prepareDHParams() {
     }
 
     // Generare i parametri DH
-    if (EVP_PKEY_paramgen(paramgen_ctx, &mDHParams) <= 0) {
+    if (EVP_PKEY_paramgen(paramgen_ctx, &mDHParameters) <= 0) {
         EVP_PKEY_CTX_free(paramgen_ctx);
         throw std::runtime_error("Unable to generate DH parameters.");
     }
@@ -482,7 +438,7 @@ std::string CryptoServer::prepareDHParams() {
     EVP_PKEY_CTX_free(paramgen_ctx);
 
     // Estrarre i parametri p e g
-    const DH* dh = EVP_PKEY_get0_DH(mDHParams);
+    const DH* dh = EVP_PKEY_get0_DH(mDHParameters);
     if (!dh) {
         throw std::runtime_error("Unable to get DH parameters.");
     }
@@ -516,7 +472,7 @@ std::string CryptoServer::prepareDHParams() {
 // Genera g^b
 std::string CryptoServer::preparePublicKey(int client_socket) {
     // Creazione del contesto per la generazione della chiave
-    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParams, NULL);
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new(mDHParameters, NULL);
     if (!ctx) {
         throw std::runtime_error("Errore nella creazione del contesto EVP_PKEY_CTX");
     }

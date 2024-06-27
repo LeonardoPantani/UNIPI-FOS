@@ -258,6 +258,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                 Packet registerPacket(PacketType::REGISTER_REQUEST, (email + " " + nickname + " " + password));
                 std::vector<char> serialized = crypto->encryptSessionMessage(registerPacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
+                // pulisco password
+                overwriteSecret(tokens[3]); overwriteSecret(password);
             }
             break;
             case CMD_LOGIN: {
@@ -283,6 +285,8 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
                 Packet loginPacket(PacketType::LOGIN_REQUEST, (nickname + " " + password));
                 std::vector<char> serialized = crypto->encryptSessionMessage(loginPacket.serialize(), &nonce);
                 WRITE(server_socket, serialized);
+                // pulisco password
+                overwriteSecret(tokens[2]); overwriteSecret(password);
             }
             break;
             case CMD_LOGOUT: {
@@ -386,12 +390,13 @@ void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) 
             break;
             case CMD_HELP: {
                 std::cout << "Comandi disponibili:" << std::endl;
-                std::cout << "| register <email> <nickname> <password> - Registrazione utente" << std::endl;
-                std::cout << "| login <nickname> <password> - Autenticazione utente" << std::endl;
-                std::cout << "| list [n] - Mostra gli ultimi n messaggi" << std::endl;
-                std::cout << "| get <messageid> - Ottieni il messaggio con ID specificato" << std::endl;
-                std::cout << "| add <title> <author> <body> - Aggiungi un nuovo messaggio" << std::endl;
-                std::cout << "| help - Mostra questo messaggio di aiuto" << std::endl;
+                std::cout << "├ register <email> <nickname> <password> - Registrazione utente" << std::endl;
+                std::cout << "├ login <nickname> <password> - Autenticazione utente" << std::endl;
+                std::cout << "├ list [n] - Mostra gli ultimi n messaggi" << std::endl;
+                std::cout << "├ get <messageid> - Ottieni il messaggio con ID specificato" << std::endl;
+                std::cout << "├ add <title> <author> <body> - Aggiungi un nuovo messaggio" << std::endl;
+                std::cout << "├ help - Mostra questo messaggio di aiuto" << std::endl;
+                std::cout << "┕ Per uscire dal programma premi 'CTRL/CMD' e 'C' contemporaneamente." << std::endl;
             }
             break;
             case CMD_UNKNOWN: { // inserimento codice di verifica
