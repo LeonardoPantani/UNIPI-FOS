@@ -22,10 +22,10 @@ const std::string certCRLPath = "../shared-certificates/crl.pem";
 const std::string ownCertPath = "client_cert.pem";
 const std::string ownPrivKeyPath = "client_priv.pem";
 
-// Intervallo di default tra una connessione e l'altra
+// Intervallo di default tra una connessione e l'altra (in secondi)
 const int connectionInterval = 5;
 
-// La f. handle_server legge questa variabile per capire se terminare
+// La funzione handle_server legge questa variabile per capire se terminare
 volatile sig_atomic_t clientRunning = true;
 
 // Handler per il segnale CTRL+C (SIGINT)
@@ -62,7 +62,7 @@ int main() {
         std::cout << "└ Per uscire dal programma premi 'CTRL/CMD' e 'C' contemporaneamente." << std::endl;
         std::cout << std::endl;
 
-        // lettura certificati
+        // istanziazione classe cryptoclient
         crypto = new CryptoClient(certCaPath, certCRLPath, ownCertPath, ownPrivKeyPath);
 
         int sock = 0;
@@ -96,10 +96,10 @@ int main() {
         // gestione thread inputhandler
         std::thread userInputThread(handle_user_input, sock, std::ref(clientRunning));
 
-        // chiamo la funzione principale handle_server
+        // chiamata la funzione principale handle_server
         handle_server(sock, clientRunning);
 
-        // unirsi al thread dell'input utente prima di terminare
+        // si attende che il thread inputhandler termini prima di chiudere il programma
         if (userInputThread.joinable()) {
             userInputThread.join();
         }
@@ -111,6 +111,5 @@ int main() {
         std::cerr << "[!] " << e.what() << std::endl;
         return 1;
     }
-
     return 0;
 }

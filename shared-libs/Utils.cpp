@@ -83,14 +83,14 @@ std::vector<char> base64_decode(const std::string &encoded) {
     bmem = BIO_new_mem_buf(encoded.data(), encoded.length());
     bmem = BIO_push(b64, bmem);
 
-    BIO_set_flags(bmem, BIO_FLAGS_BASE64_NO_NL); // Ignora i nuovi linee
+    BIO_set_flags(bmem, BIO_FLAGS_BASE64_NO_NL);
     int decodedSize = BIO_read(bmem, buffer.data(), encoded.length());
     if (decodedSize < 0) {
         BIO_free_all(bmem);
         throw std::runtime_error("Error decoding base64");
     }
 
-    buffer.resize(decodedSize);
+    buffer.resize(static_cast<std::vector<char>::size_type>(decodedSize));
     BIO_free_all(bmem);
 
     return buffer;

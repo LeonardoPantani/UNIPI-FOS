@@ -104,6 +104,21 @@ void CryptoServer::removeClientSocket(int client_socket) {
 }
 
 
+X509* CryptoServer::stringToCertificate(const std::string& toConvert) {
+    BIO* bio = BIO_new_mem_buf(toConvert.c_str(), -1);
+    if (bio == nullptr) {
+        throw std::runtime_error("Errore nella creazione del BIO");
+    }
+    X509* cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+    BIO_free(bio);
+
+    if (cert == nullptr) {
+        throw std::runtime_error("Errore nella lettura del certificato PEM");
+    }
+
+    return cert;
+}
+
 bool CryptoServer::storeCertificate(X509* toStore) {
     if (X509_STORE_add_cert(mStore, toStore) == -1) {
         return false; // impossibile aggiungere
@@ -165,8 +180,10 @@ std::string CryptoServer::prepareCertificate() {
 }
 
 
-// funzione intermedia privata: firma la coppia <g^b, g^a>
 std::string CryptoServer::signWithPrivateKey(int client_socket) {
+    // la coppia è composta dalle seguenti chiavi, convertite in stringa:
+    // - mia chiave pubblica (g^b con b esponente privato, diverso per ogni client)
+    // - chiave pubblica del client (g^a)
     std::string pair = keyToString(mMyPublicKey[client_socket]) + " " + keyToString(mPeersPublicKeys[client_socket]);
 
     // carico da file la chiave privata (esponente b)
@@ -203,7 +220,8 @@ std::vector<char> CryptoServer::encryptSignatureWithK(int client_socket, std::st
     const unsigned char* key = reinterpret_cast<const unsigned char*>(mPeersK[client_socket].data());
     const unsigned char* msg = reinterpret_cast<const unsigned char*>(signedPair.data());
 
-    std::vector<unsigned char> ciphertext(signedPair.size() + EVP_MAX_BLOCK_LENGTH);
+    // ciphertext con dimensione aumentata per il padding
+    std::vector<unsigned char> ciphertext(signedPair.size() + static_cast<size_t>(EVP_CIPHER_block_size(EVP_aes_256_cbc())));
     int cipherlen;
     int outlen;
 
@@ -214,7 +232,7 @@ std::vector<char> CryptoServer::encryptSignatureWithK(int client_socket, std::st
     }
 
     /* Encryption (initialization + single update + finalization) */
-    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_ecb(), nullptr, key, nullptr)) {
+    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_EncryptInit_ex failed");
     }
@@ -255,7 +273,7 @@ std::vector<char> CryptoServer::decryptSignatureWithK(int client_socket, std::ve
     }
 
     /* Decryption (initialization + single update + finalization) */
-    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_ecb(), nullptr, key, nullptr)) {
+    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_DecryptInit_ex failed");
     }
@@ -279,37 +297,19 @@ std::vector<char> CryptoServer::decryptSignatureWithK(int client_socket, std::ve
     return decrypted;
 }
 
-// chiamata dal server, fornisce {<g^b, g^a>B}k
 std::string CryptoServer::prepareSignedPair(int client_socket) {
     return base64_encode(encryptSignatureWithK(client_socket, signWithPrivateKey(client_socket)));
 }
 
-EVP_PKEY* CryptoServer::extractPublicKeyFromCertificate(std::string clientCertificate) {
-    // Creare un buffer di memoria dalla stringa del certificato
-    BIO* bio = BIO_new_mem_buf(clientCertificate.data(), clientCertificate.size());
-    if (!bio) {
-        throw std::runtime_error("Impossibile creare buffer di memoria.");
-    }
-
-    // Leggere il certificato X509 dal buffer
-    X509* cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
-    BIO_free(bio); // Rilasciare il buffer
-    if (!cert) {
-        throw std::runtime_error("Il certificato è illeggibile.");
-    }
-
-    // Estrarre la chiave pubblica dal certificato X509
-    EVP_PKEY* pubKey = X509_get_pubkey(cert);
-    X509_free(cert); // Rilasciare il certificato
+EVP_PKEY* CryptoServer::extractPublicKeyFromCertificate(std::string certificate) {
+    EVP_PKEY* pubKey = X509_get_pubkey(stringToCertificate(certificate));
     if (!pubKey) {
         throw std::runtime_error("Impossibile estrarre la chiave pubblica.");
     }
-
-    // Restituire la chiave pubblica
     return pubKey;
 }
 
-void CryptoServer::verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* serverCertificatePublicKey) {
+void CryptoServer::verifySignature(int client_socket, std::vector<char> signedPair, EVP_PKEY* peerPublicKey) {
     // Ricostruire coppia: g^b g^a
     std::string reconstructedPair = keyToString(mMyPublicKey[client_socket]) + " " + keyToString(mPeersPublicKeys[client_socket]);
 
@@ -340,7 +340,7 @@ void CryptoServer::verifySignature(int client_socket, std::vector<char> signedPa
     }
 
     // Esegui la verifica finale
-    int ret = EVP_VerifyFinal(ctx, signature, signature_len, serverCertificatePublicKey);
+    int ret = EVP_VerifyFinal(ctx, signature, signature_len, peerPublicKey);
     EVP_MD_CTX_free(ctx);
 
     // Verifica il risultato
@@ -349,15 +349,18 @@ void CryptoServer::verifySignature(int client_socket, std::vector<char> signedPa
     }
 }
 
-void CryptoServer::varCheck(int client_socket, std::string serverCertificate, std::vector<char> clientSignedEncryptedPair) {
+void CryptoServer::varCheck(int client_socket, std::string clientCertificate, std::vector<char> clientSignedEncryptedPair) {
     std::vector<char> signedPair = decryptSignatureWithK(client_socket, clientSignedEncryptedPair);
-    EVP_PKEY* certPubKey = extractPublicKeyFromCertificate(serverCertificate);
+    
+    if(!verifyCertificate(stringToCertificate(clientCertificate))) {
+        throw std::runtime_error("Il certificato fornito dal server non è valido.");
+    }
     
     try {
-        verifySignature(client_socket, signedPair, certPubKey);
-        EVP_PKEY_free(certPubKey);
+        EVP_PKEY* clientCertPublicKey = extractPublicKeyFromCertificate(clientCertificate);
+        verifySignature(client_socket, signedPair, clientCertPublicKey);
+        EVP_PKEY_free(clientCertPublicKey);
     } catch(std::exception const&e) {
-        EVP_PKEY_free(certPubKey);
         throw std::runtime_error(std::string("Errore varCheck: ") + e.what());
     }
 }
@@ -422,8 +425,8 @@ std::string CryptoServer::prepareDHParameters() {
         throw std::runtime_error("Unable to initialize parameter generation context.");
     }
 
-    // Specificare la dimensione del primo parametro (ad esempio, 2048 bit)
-    if (EVP_PKEY_CTX_set_dh_paramgen_prime_len(paramgen_ctx, 1024) <= 0) {
+    // Specificare la dimensione del primo parametro
+    if (EVP_PKEY_CTX_set_dh_paramgen_prime_len(paramgen_ctx, 2048) <= 0) {
         EVP_PKEY_CTX_free(paramgen_ctx);
         throw std::runtime_error("Unable to set prime length.");
     }
@@ -591,7 +594,8 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
     }
 
     int len;
-    ciphertext.resize(toEncrypt.size() + EVP_CIPHER_block_size(EVP_aes_256_gcm()));
+    // ciphertext con dimensione aumentata per il padding
+    ciphertext.resize(toEncrypt.size() + static_cast<size_t>(EVP_CIPHER_block_size(EVP_aes_256_gcm())));
     if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, reinterpret_cast<const unsigned char*>(toEncrypt.data()), toEncrypt.size()) != 1) {
         throw std::runtime_error("Errore EncryptUpdate.");
     }
@@ -604,7 +608,7 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
 
     ciphertext.resize(ciphertext_len);
 
-    tag.resize(16); // GCM standard tag size is 16 bytes
+    tag.resize(16); // GCM standard tag size is 16 bytes (risultato dell'autenticazione GCM)
     if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag.size(), tag.data()) != 1) {
         throw std::runtime_error("Errore CIPHER_CTX_ctrl.");
     }

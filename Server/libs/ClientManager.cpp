@@ -124,6 +124,7 @@ void handle_client(int client_socket) {
 
                     std::string myPubKey = crypto->preparePublicKey(client_socket);
                     std::string myCert = crypto->prepareCertificate();
+                    
                     // mando chiave pubblica, certificato, firma al client
                     crypto->derivateK(client_socket);
                     std::string mySignature = crypto->prepareSignedPair(client_socket);
@@ -362,13 +363,14 @@ void handle_client(int client_socket) {
 
 
                     std::vector<Message> obtainedMessages = memory->getMessages(n);
-                    std::string toReturn;
+                    std::string toReturn = "";
 
                     if(obtainedMessages.size() == 0) {
                         toReturn = "Non ci sono messaggi in bacheca.";
                     } else {
-                        toReturn = "========================================\n";
-                        if(n != 1) {
+                        if(obtainedMessages.size() < n) toReturn += "> Il numero di messaggi in bacheca è minore di quello richiesto.\n";
+                        toReturn += "========================================\n";
+                        if(obtainedMessages.size() != 1) {
                             toReturn += "ULTIMI " + std::to_string(obtainedMessages.size()) + " MESSAGGI:";
                         } else {
                             toReturn += "ULTIMO MESSAGGIO:";

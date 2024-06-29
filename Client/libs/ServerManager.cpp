@@ -6,7 +6,9 @@ bool amIAuthenticated = false;
 long nonce = 0;
 extern CryptoClient* crypto;
 
-// Funzione per ottenere il comando dal testo inserito
+/// @brief (privata) Ottiene il comando dal testo inserito
+/// @param command il comando scritto dall'utente in forma di stringa
+/// @return il codice enum del messaggio scritto, CMD_UNKNOWN se non trovato
 Command getCommand(const std::string& command) {
     static const std::map<std::string, Command> commandMap = {
         {"register", CMD_REGISTER},
@@ -26,7 +28,7 @@ Command getCommand(const std::string& command) {
     }
 }
 
-/// @brief Gestisce l'input nel caso del comando BBS_ADD
+/// @brief (privata) Gestisce l'input nel caso del comando BBS_ADD
 /// @param input l'input da spezzettare
 /// @return una tripla contenente 3 stringhe: <titolo, autore, messaggio>
 std::tuple<std::string, std::string, std::string> addMessageCommandParser(const std::string& input) {
@@ -54,6 +56,9 @@ std::tuple<std::string, std::string, std::string> addMessageCommandParser(const 
 }
 
 
+/// @brief Funzione che viene eseguita dal thread principale che gestisce la comunicazione col server
+/// @param server_socket il socket del server
+/// @param clientRunning la variabile che viene impostata a FALSE dal SignalHandler nel main per far terminare il listener
 void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
     bool serverClosing = false;
     bool isHandshakeDone = false;
@@ -100,8 +105,6 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
                 packet = Packet::deserialize(buffer, bytes_read);
             }
             memset(buffer, 0, sizeof(buffer));
-            
-            //std::cout << "Server > " << packet.getTypeAsString() << std::endl;
 
             switch (packet.mType) { // pacchetti inviati dal server
                 case PacketType::HELLO: { // - non necessario stampare qualcosa a schermo
@@ -116,7 +119,7 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
                 }
                 break;
                 case PacketType::HANDSHAKE: { // - non necessario stampare qualcosa a schermo
-                    // ho ricevuto M2 dal server
+                    // ho ricevuto M2 dal server (chiave pubblica del server (DH), coppia cifrata, firmata e codifica in base64) e certificato)
                     nlohmann::json jsonData = nlohmann::json::parse(packet.getContent());
                     std::string serverPublicKey = jsonData["publicKey"];
                     std::string serverCertificate = jsonData["certificate"];
@@ -216,6 +219,9 @@ void handle_server(int server_socket, volatile sig_atomic_t &clientRunning) {
     close(server_socket);
 }
 
+/// @brief Funzione che viene eseguita su un altro thread che gestisce l'input dell'utente tramite terminale
+/// @param server_socket il socket del server
+/// @param clientRunning la variabile che viene impostata a FALSE dal SignalHandler nel main per far terminare il listener
 void handle_user_input(int server_socket, volatile sig_atomic_t &clientRunning) {
     AsyncInput asyncIn;
     std::string userInput;

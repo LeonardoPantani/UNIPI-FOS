@@ -34,6 +34,7 @@ class Message {
         std::string getAuthor() const { return mAuthor; }
         std::string getBody() const { return mBody; }
         long long getCreationTime() const { return mCreationTime; }
+        
         std::string getFormattedCreationTime() const {
             std::chrono::system_clock::time_point timePoint = std::chrono::system_clock::time_point(std::chrono::nanoseconds(mCreationTime));
             std::time_t creationTime = std::chrono::system_clock::to_time_t(timePoint);
