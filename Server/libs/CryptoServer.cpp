@@ -353,7 +353,7 @@ void CryptoServer::varCheck(int client_socket, std::string clientCertificate, st
     std::vector<char> signedPair = decryptSignatureWithK(client_socket, clientSignedEncryptedPair);
     
     if(!verifyCertificate(stringToCertificate(clientCertificate))) {
-        throw std::runtime_error("Il certificato fornito dal server non è valido.");
+        throw std::runtime_error("Il certificato fornito dal client non è valido.");
     }
     
     try {
