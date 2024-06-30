@@ -195,13 +195,11 @@ std::vector<char> CryptoClient::encryptSignatureWithK(std::string signedPair) {
     int cipherlen;
     int outlen;
 
-    /* Context allocation */
     ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         throw std::runtime_error("Failed to create EVP_CIPHER_CTX");
     }
 
-    /* Encryption (initialization + single update + finalization) */
     if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_EncryptInit_ex failed");
@@ -217,7 +215,6 @@ std::vector<char> CryptoClient::encryptSignatureWithK(std::string signedPair) {
     }
     cipherlen += outlen;
 
-    /* Context deallocation */
     EVP_CIPHER_CTX_free(ctx);
 
     std::vector<char> encrypted(cipherlen);
@@ -242,7 +239,6 @@ std::vector<char> CryptoClient::decryptSignatureWithK(std::vector<char> signedEn
         throw std::runtime_error("Failed to create EVP_CIPHER_CTX");
     }
 
-    /* Decryption (initialization + single update + finalization) */
     if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_DecryptInit_ex failed");
@@ -258,7 +254,6 @@ std::vector<char> CryptoClient::decryptSignatureWithK(std::vector<char> signedEn
     }
     plainlen += outlen;
 
-    /* Context deallocation */
     EVP_CIPHER_CTX_free(ctx);
 
     std::vector<char> decrypted(plainlen);
@@ -518,7 +513,7 @@ std::vector<char> CryptoClient::encryptSessionMessage(std::vector<char> toEncryp
         throw std::runtime_error("Impossibile creare contesto.");
     }
 
-    unsigned char iv[12]; // GCM standard IV size is 12 bytes
+    unsigned char iv[12]; // GCM standard IV (authenticated encryption)
     if (RAND_bytes(iv, sizeof(iv)) != 1) {
         throw std::runtime_error("Impossibile generare IV casuale.");
     }

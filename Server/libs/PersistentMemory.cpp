@@ -21,7 +21,7 @@ PersistentMemory::~PersistentMemory() {
     saveToFile();
 }
 
-bool PersistentMemory::loadKey() {
+bool PersistentMemory::loadKey() { // il file della chiave contiene: chiave (primi 32 byte, 256 bit) + IV (ultimi 16 byte, 128 bit)
     std::ifstream keyFile(mKeyFilePath, std::ios::binary);
     if (keyFile.is_open()) {
         keyFile.read(reinterpret_cast<char*>(mKey), sizeof(mKey));
@@ -38,7 +38,7 @@ bool PersistentMemory::loadKey() {
     }
 }
 
-void PersistentMemory::saveKey() {
+void PersistentMemory::saveKey() { // il file della chiave contiene: chiave (primi 32 byte, 256 bit) + IV (ultimi 16 byte, 128 bit)
     std::ofstream keyFile(mKeyFilePath, std::ios::binary);
     if (!keyFile.is_open()) {
         throw std::runtime_error("Impossibile aprire il file chiave in scrittura.");
@@ -148,7 +148,7 @@ std::string PersistentMemory::encrypt(const std::string& plainText) {
 
     cipherText.resize(static_cast<size_t>(cipherTextLen));
 
-    // genero un HMAC per integrità ()
+    // genero un HMAC per integrità
     std::string hmac = generateHMAC(mKey, cipherText);
 
     // aggiungo HMAC al testo cifrato

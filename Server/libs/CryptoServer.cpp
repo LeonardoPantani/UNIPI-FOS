@@ -225,13 +225,11 @@ std::vector<char> CryptoServer::encryptSignatureWithK(int client_socket, std::st
     int cipherlen;
     int outlen;
 
-    /* Context allocation */
     ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         throw std::runtime_error("Failed to create EVP_CIPHER_CTX");
     }
 
-    /* Encryption (initialization + single update + finalization) */
     if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_EncryptInit_ex failed");
@@ -247,7 +245,6 @@ std::vector<char> CryptoServer::encryptSignatureWithK(int client_socket, std::st
     }
     cipherlen += outlen;
 
-    /* Context deallocation */
     EVP_CIPHER_CTX_free(ctx);
 
     std::vector<char> encrypted(cipherlen);
@@ -266,13 +263,11 @@ std::vector<char> CryptoServer::decryptSignatureWithK(int client_socket, std::ve
     int plainlen;
     int outlen;
 
-    /* Context allocation */
     ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         throw std::runtime_error("Failed to create EVP_CIPHER_CTX");
     }
 
-    /* Decryption (initialization + single update + finalization) */
     if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, key, nullptr)) {
         EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error("EVP_DecryptInit_ex failed");
@@ -288,7 +283,6 @@ std::vector<char> CryptoServer::decryptSignatureWithK(int client_socket, std::ve
     }
     plainlen += outlen;
 
-    /* Context deallocation */
     EVP_CIPHER_CTX_free(ctx);
 
     std::vector<char> decrypted(plainlen);
@@ -559,7 +553,7 @@ void CryptoServer::receivePublicKey(int client_socket, const std::string& peerPu
     BIO_free(bio);
 }
 
-// [nonce (8), packetType (4), dato (?)]
+// [ packetType (4), dato (nonce (8) + dato effettivo)]
 std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::vector<char> toEncrypt, long *nonce) {
     // aggiungiamo nonce+1 a toEncrypt all'inizio in modo che assuma il formato descritto sopra ^^
     *nonce += 1;
@@ -575,7 +569,7 @@ std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::ve
         throw std::runtime_error("Impossibile creare contesto.");
     }
 
-    unsigned char iv[12]; // GCM standard IV size is 12 bytes
+    unsigned char iv[12]; // GCM standard IV (authenticated encryption)
     if (RAND_bytes(iv, sizeof(iv)) != 1) {
         throw std::runtime_error("Impossibile generare IV casuale.");
     }
