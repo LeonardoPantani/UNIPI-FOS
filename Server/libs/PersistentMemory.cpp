@@ -146,22 +146,43 @@ std::string PersistentMemory::encrypt(const std::string& plainText) {
 
     EVP_CIPHER_CTX_free(ctx);
 
-    return cipherText.substr(0, static_cast<size_t>(cipherTextLen));
+    cipherText.resize(static_cast<size_t>(cipherTextLen));
+
+    // genero un HMAC per integrità ()
+    std::string hmac = generateHMAC(mKey, cipherText);
+
+    // aggiungo HMAC al testo cifrato
+    cipherText += hmac;
+
+    return cipherText;
 }
 
 std::string PersistentMemory::decrypt(const std::string& cipherText) {
+    if (cipherText.size() < SHA256_DIGEST_LENGTH) {
+        throw std::runtime_error("Testo cifrato troppo corto per contenere un HMAC valido.");
+    }
+
+    // estraggo dal fondo del file gli ultimi 32 byte (256 bit) che contengono l'HMAC, il resto è il testo cifrato effettivo
+    std::string receivedHMAC = cipherText.substr(cipherText.size() - SHA256_DIGEST_LENGTH);
+    std::string actualCipherText = cipherText.substr(0, cipherText.size() - SHA256_DIGEST_LENGTH);
+
+    // verifico l'HMAC
+    if (!verifyHMAC(mKey, actualCipherText, receivedHMAC)) {
+        throw std::runtime_error("Verifica HMAC fallita: la chiave o la memoria persistente sono stati alterati.");
+    }
+
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     if (!ctx) throw std::runtime_error("Inizializzazione contesto di decifratura fallita.");
 
     int len;
     int plainTextLen;
-    std::string plainText(cipherText.size(), '\0');
+    std::string plainText(actualCipherText.size(), '\0');
 
     if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), nullptr, mKey, mIV))
         throw std::runtime_error("Inizializzazione decifratura fallita.");
 
     if (1 != EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char*>(&plainText[0]), &len, 
-                               reinterpret_cast<const unsigned char*>(cipherText.c_str()), cipherText.size()))
+                               reinterpret_cast<const unsigned char*>(actualCipherText.c_str()), actualCipherText.size()))
         throw std::runtime_error("Aggiornamento decifratura fallito.");
     plainTextLen = len;
 
@@ -172,6 +193,22 @@ std::string PersistentMemory::decrypt(const std::string& cipherText) {
     EVP_CIPHER_CTX_free(ctx);
 
     return plainText.substr(0, static_cast<size_t>(plainTextLen));
+}
+
+std::string PersistentMemory::generateHMAC(const unsigned char* key, const std::string& data) {
+    unsigned char hmac[EVP_MAX_MD_SIZE];
+    unsigned int hmacLen;
+    HMAC_CTX* ctx = HMAC_CTX_new();
+    HMAC_Init_ex(ctx, key, 32, EVP_sha256(), nullptr);
+    HMAC_Update(ctx, reinterpret_cast<const unsigned char*>(data.c_str()), data.size());
+    HMAC_Final(ctx, hmac, &hmacLen);
+    HMAC_CTX_free(ctx);
+    return std::string(reinterpret_cast<char*>(hmac), hmacLen);
+}
+
+bool PersistentMemory::verifyHMAC(const unsigned char* key, const std::string& data, const std::string& receivedHMAC) {
+    std::string computedHMAC = generateHMAC(key, data);
+    return computedHMAC == receivedHMAC;
 }
 
 void PersistentMemory::addUser(const User& user) {

@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/hmac.h>
+#include <openssl/sha.h>
 
 #include "User.hpp"
 #include "Message.hpp"
@@ -30,6 +32,8 @@ class PersistentMemory {
         void saveToFile();
         std::string encrypt(const std::string& plainText);
         std::string decrypt(const std::string& cipherText);
+        std::string generateHMAC(const unsigned char* key, const std::string& data);
+        bool verifyHMAC(const unsigned char* key, const std::string& data, const std::string& receivedHMAC);
 
     public:
         PersistentMemory(const std::string& dataFilePath, const std::string& keyFilePath);
