@@ -553,7 +553,7 @@ void CryptoServer::receivePublicKey(int client_socket, const std::string& peerPu
     BIO_free(bio);
 }
 
-// [ packetType (4), dato (nonce (8) + dato effettivo)]
+// [ packetType (4 byte), dato (nonce (8 byte) + dato effettivo)]
 std::vector<char> CryptoServer::encryptSessionMessage(int client_socket, std::vector<char> toEncrypt, long *nonce) {
     // aggiungiamo nonce+1 a toEncrypt all'inizio in modo che assuma il formato descritto sopra ^^
     *nonce += 1;
